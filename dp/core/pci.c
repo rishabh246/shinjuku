@@ -48,6 +48,8 @@
 #include <sys/ioctl.h>
 
 #include <dune.h>
+#include <errno.h>
+
 
 #define PCI_SYSFS_PATH "/sys/bus/pci/devices"
 
@@ -413,5 +415,8 @@ int pci_set_master(struct pci_dev *dev)
 	args.pci_loc.slot = dev->addr.slot;
 	args.pci_loc.func = dev->addr.func;
 
-	return ioctl(pcidma_fd, PCIDMA_ENABLE, &args);
+	int ret = ioctl(pcidma_fd, PCIDMA_ENABLE, &args);
+	if(ret)
+		log_err("ioctl failed and returned errno %s \n",strerror(errno));
+	return ret;
 }
