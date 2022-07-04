@@ -23,6 +23,7 @@
 #include <limits.h>
 #include <stdint.h>
 #include <ucontext.h>
+#include <stdio.h>
 
 #include <ix/cfg.h>
 #include <ix/mempool.h>

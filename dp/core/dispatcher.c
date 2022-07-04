@@ -27,6 +27,7 @@
  * core and dispatching these packets or contexts to the worker cores.
  */
 
+#include <stdio.h>
 #include <ix/cfg.h>
 #include <ix/context.h>
 #include <ix/dispatch.h>
@@ -81,10 +82,12 @@ static inline void dispatch_request(int i, uint64_t cur_time)
         void * rnbl, * mbuf;
         uint8_t type, category;
         uint64_t timestamp;
-
-        if(smart_tskq_dequeue(tskq, &rnbl, &mbuf, &type,
-                              &category, &timestamp, cur_time))
+        int ret = smart_tskq_dequeue(tskq, &rnbl, &mbuf, &type,
+                              &category, &timestamp, cur_time);
+        if(ret){
+                // printf("%d\n", ret);
                 return;
+        }
         worker_responses[i].flag = RUNNING;
         dispatcher_requests[i].rnbl = rnbl;
         dispatcher_requests[i].mbuf = mbuf;
@@ -100,6 +103,7 @@ static inline void preempt_worker(int i, uint64_t cur_time)
 {
         if (preempt_check[i] && (((cur_time - timestamps[i]) / 2.5) > PREEMPTION_DELAY)) {
                 // Avoid preempting more times.
+                printf("Trying to preempt\n");
                 preempt_check[i] = false;
                 dune_apic_send_posted_ipi(PREEMPT_VECTOR, CFG.cpu[i + 2]);
         }
@@ -138,7 +142,7 @@ static inline void handle_networker(uint64_t cur_time)
                                           type, PACKET, cur_time);
                 }
 
-                for (i = 0; i < ETH_RX_MAX_BATCH; i++) {
+                for (i = 0; i < ETH_RX_MAX_BATCH; i++) { 
                         struct mbuf * buf = mbuf_dequeue(&mqueue);
                         if (!buf)
                                 break;

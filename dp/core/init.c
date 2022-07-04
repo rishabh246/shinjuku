@@ -90,6 +90,7 @@ extern int response_init_cpu(void);
 extern int context_init(void);
 extern void do_work(void);
 extern void do_networking(void);
+extern void do_work_gen(void);
 extern void do_dispatching(int num_cpus);
 
 extern struct mempool context_pool;
@@ -286,8 +287,10 @@ static int init_create_cpu(unsigned int cpu, int first)
 		if (init_tbl[i].fcpu) {
 			ret = init_tbl[i].fcpu();
 			log_info("init: module %-10s on %d: %s \n", init_tbl[i].name, percpu_get(cpu_id), (ret ? "FAILURE" : "SUCCESS"));
-			if (ret)
+			if (ret) {	
+				printf("%d\n", ret);
 				panic("could not initialize IX\n");
+			}
 		}
         }
 
@@ -304,7 +307,7 @@ void *start_cpu(void *arg)
 	unsigned int cpu_nr_ = (unsigned int)(unsigned long) arg;
 	unsigned int cpu = CFG.cpu[cpu_nr_];
 
-        ret = init_create_cpu(cpu, 0);
+  ret = init_create_cpu(cpu, 0);
 	if (ret) {
 		log_err("init: failed to initialize CPU %d\n", cpu);
 		exit(ret);
@@ -314,32 +317,33 @@ void *start_cpu(void *arg)
 
 	percpu_get(cpu_nr) = cpu_nr_;
 
-        log_info("start_cpu: starting cpu-specific work\n");
-        if (cpu_nr_ == 1) {
-                ret = init_rx_queue();
-                if (ret) {
-                        log_err("init: failed to initialize RX queue\n");
-                        exit(ret);
-                }
+	log_info("start_cpu: starting cpu-specific work\n");
+	if (cpu_nr_ == 1) {
+		ret = init_rx_queue();
+		if (ret) {
+						log_err("init: failed to initialize RX queue\n");
+						exit(ret);
+		}
 
-	        started_cpus++;
+		started_cpus++;
 
-                // Wait until all TX queues are set up before starting ethernet
-                // device.
-                while (started_cpus != CFG.num_cpus - 1);
+		// Wait until all TX queues are set up before starting ethernet
+		// device.
+		while (started_cpus != CFG.num_cpus - 1);
 
-                ret = init_network_cpu();
-                if (ret) {
-                        log_err("init: failed to initialize network cpu\n");
-                        exit(ret);
-                }
-	        pthread_barrier_wait(&start_barrier);
-                do_networking();
-        } else {
-	        started_cpus++;
-	        pthread_barrier_wait(&start_barrier);
-                do_work();
-        }
+		ret = init_network_cpu();
+		if (ret) {
+						log_err("init: failed to initialize network cpu\n");
+						exit(ret);
+		}
+		pthread_barrier_wait(&start_barrier);
+		// do_networking();
+		do_work_gen();
+	} else {
+		started_cpus++;
+		pthread_barrier_wait(&start_barrier);
+		do_work();
+	}
 
 	return NULL;
 }
@@ -421,13 +425,16 @@ int main(int argc, char *argv[])
 		if (init_tbl[i].f) {
 			ret = init_tbl[i].f();
 			log_info("init: module %-10s %s\n", init_tbl[i].name, (ret ? "FAILURE" : "SUCCESS"));
-			if (ret)
+			if (ret) {	
+				printf("%d\n", ret);
 				panic("could not initialize IX\n");
-                }
-        }
-        log_info("init done\n");
+			}
+    }
+  }
+  
+	log_info("init done\n");
 
-        do_dispatching(CFG.num_cpus);
+  do_dispatching(CFG.num_cpus);
 	log_info("finished handling contexts, looping forever...\n");
 	return 0;
 }

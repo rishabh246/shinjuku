@@ -65,3 +65,46 @@ void do_networking(void)
                 networker_pointers.cnt = num_recv;
         }
 }
+
+/* Support for fake networking */
+
+#define MAX_LIVE_REQS 128
+
+// Basic mempool. TODO: Optimize
+volatile struct mbuf fake_pkts[MAX_LIVE_REQS];
+int live_reqs[MAX_LIVE_REQS] = {0};
+int cursor = 0; 
+
+volatile struct mbuf* gen_fake_reqs(void) {
+        struct mbuf* ret = NULL;
+        for(int x = 0; x < MAX_LIVE_REQS; cursor = (cursor+1) & (MAX_LIVE_REQS-1), x++) {
+                if(live_reqs[cursor]) {
+                        continue;
+                }
+                live_reqs[cursor] = 1;
+                ret = &(fake_pkts[cursor]);
+                printf("Sent fake req\n");
+                break;
+        }
+        return ret;
+}
+
+void do_work_gen(void) {
+        int i;
+        while(1) {
+                while(networker_pointers.cnt !=0);
+                for (i = 0; i < networker_pointers.free_cnt; i++) {
+                        live_reqs[i] = 0;
+                }       
+                networker_pointers.free_cnt = 0;
+                for (i = 0; i < ETH_RX_MAX_BATCH; i++) {
+                        struct mbuf* temp = gen_fake_reqs();
+                        if(!temp) {
+                                break; // no more packets to receive
+                        }
+                        networker_pointers.pkts[i] = temp;
+                        networker_pointers.types[i] = 0; // For now, only 1 port/type    
+                }
+                networker_pointers.cnt = i;
+        }
+}

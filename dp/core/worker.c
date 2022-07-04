@@ -102,6 +102,7 @@ int response_init_cpu(void)
 
 static void test_handler(struct dune_tf *tf)
 {
+        printf("Preemption handler\n");
         asm volatile ("cli":::);
         dune_apic_eoi();
         swapcontext_fast_to_control(cont, &uctx_main);
@@ -221,6 +222,11 @@ static inline void handle_new_packet(void)
         }
 }
 
+static inline void handle_fake_new_packet(void) {
+        printf("Got request\n");
+}
+
+
 static inline void handle_context(void)
 {
         int ret;
@@ -240,6 +246,16 @@ static inline void handle_request(void)
         dispatcher_requests[cpu_nr_].flag = WAITING;
         if (dispatcher_requests[cpu_nr_].category == PACKET)
                 handle_new_packet();
+        else
+                handle_context();
+}
+
+static inline void handle_fake_request(void)
+{
+        while (dispatcher_requests[cpu_nr_].flag == WAITING);
+        dispatcher_requests[cpu_nr_].flag = WAITING;
+        if (dispatcher_requests[cpu_nr_].category == PACKET)
+                handle_fake_new_packet();
         else
                 handle_context();
 }
@@ -267,9 +283,12 @@ void do_work(void)
         log_info("do_work: Waiting for dispatcher work\n");
 
         while (true) {
-                eth_process_reclaim();
+#ifdef FAKE_WORK
+                handle_fake_request();
+#else           eth_process_reclaim();
                 eth_process_send();
                 handle_request();
+#endif
                 finish_request();
         }
 }
