@@ -8,7 +8,7 @@ rmmod dune
 sudo sh -c 'for i in /sys/devices/system/node/node*/hugepages/hugepages-2048kB/nr_hugepages; do echo 8192 > $i; done'
 
 # Unbind NICs
- ./deps/dpdk/tools/dpdk_nic_bind.py -u 83:00.0
+./deps/dpdk/tools/dpdk_nic_bind.py -u 83:00.0
 
 # Build required kernel modules.
 make -s -C deps/dune

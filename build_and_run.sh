@@ -1,5 +1,5 @@
 #!/bin/sh
 
 make clean
-make -sj64
-./dp/shinjuku
+make -s
+sudo ./dp/shinjuku
