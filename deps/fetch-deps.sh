@@ -117,6 +117,11 @@ git_clone_checkout()
   git -C "$2" checkout "$3" || echo "$0: warning git chechout failed."
 }
 
+fix_dpdk_error()
+{
+  sed -i '41i #include <sys/sysmacros.h>' "$1"/dpdk/lib/librte_eal/linuxapp/eal/eal_pci_uio.c
+}
+
 Main__main()
 {
     # init scipt temporals
@@ -140,6 +145,8 @@ Main__main()
         git_clone_checkout "$src" "$DIR/$dst" "$tag"
     done < "$argv__DEPFILE"
 
+    fix_dpdk_error "$DIR"
+
     exit 0
 }
 
@@ -147,4 +154,3 @@ Main__main()
 #trap exit INT TERM EXIT
 
 Main__main "$@"
-
