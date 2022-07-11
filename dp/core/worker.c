@@ -39,6 +39,11 @@
 #include <sys/types.h>
 #include <sys/resource.h>
 
+// Added for leveldb
+#include <ix/leveldb.h>
+#include <ix/hijack.h>
+#include <leveldb/c.h>
+
 #include <ix/cpu.h>
 #include <ix/log.h>
 #include <ix/mbuf.h>
@@ -59,6 +64,9 @@ __thread ucontext_t uctx_main;
 __thread ucontext_t * cont;
 __thread int cpu_nr_;
 __thread volatile uint8_t finished;
+
+// Added for leveldb
+extern uint8_t flag;
 
 DEFINE_PERCPU(struct mempool, response_pool __attribute__((aligned(64))));
 
@@ -125,11 +133,24 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
 
         struct request * req = (struct request *) data;
 
-        uint64_t i = 0;
-        do {
-                asm volatile ("nop");
-                i++;
-        } while ( i / 0.233 < req->runNs);
+        // Added for leveldb
+        leveldb_readoptions_t * readoptions = leveldb_readoptions_create();
+	leveldb_iterator_t * iter = leveldb_create_iterator(db, readoptions);
+	for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter); leveldb_iter_next(iter)) {
+		char * retr_key;
+		size_t klen;
+		retr_key = leveldb_iter_key(iter, &klen);
+		if (req->runNs > 0)
+			break;
+	}
+	leveldb_iter_destroy(iter);
+	leveldb_readoptions_destroy(readoptions);
+
+        // uint64_t i = 0;
+        // do {
+        //         asm volatile ("nop");
+        //         i++;
+        // } while ( i / 0.233 < req->runNs);
 
         asm volatile ("cli":::);
         struct response * resp = mempool_alloc(&percpu_get(response_pool));

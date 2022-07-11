@@ -48,6 +48,10 @@
 #include <ix/context.h>
 #include <ix/dispatch.h>
 
+// Added for leveldb
+#include <ix/leveldb.h>
+#include <leveldb/c.h>
+
 #include <asm/cpu.h>
 
 #include <net/ip.h>
@@ -95,6 +99,9 @@ extern void do_dispatching(int num_cpus);
 
 extern struct mempool context_pool;
 extern struct mempool stack_pool;
+
+// Flag that controls whether interrupts are disabled during memory allocation.
+uint8_t flag;
 
 struct init_vector_t {
 	const char *name;
@@ -433,6 +440,17 @@ int main(int argc, char *argv[])
   }
   
 	log_info("init done\n");
+
+	leveldb_t *db;
+	leveldb_options_t *options = leveldb_options_create();
+	// create the DB if it's not already present
+	leveldb_options_set_create_if_missing(options, 1);
+	
+	char *err = NULL;
+    db = leveldb_open(options, "/tmp/leveldb", &err);
+
+	assert(!err);
+	flag = 1;
 
   do_dispatching(CFG.num_cpus);
 	log_info("finished handling contexts, looping forever...\n");
