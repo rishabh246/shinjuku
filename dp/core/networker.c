@@ -83,7 +83,6 @@ volatile struct mbuf* gen_fake_reqs(void) {
                 }
                 live_reqs[cursor] = 1;
                 ret = &(fake_pkts[cursor]);
-                printf("Sent fake req\n");
                 break;
         }
         return ret;

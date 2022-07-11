@@ -103,8 +103,7 @@ static inline void preempt_worker(int i, uint64_t cur_time)
 {
         if (preempt_check[i] && (((cur_time - timestamps[i]) / 2.5) > PREEMPTION_DELAY)) {
                 // Avoid preempting more times.
-                printf("Trying to preempt\n");
-                preempt_check[i] = false;
+                // preempt_check[i] = false;
                 dune_apic_send_posted_ipi(PREEMPT_VECTOR, CFG.cpu[i + 2]);
         }
 }
@@ -127,7 +126,6 @@ static inline void handle_networker(uint64_t cur_time)
         int i, ret;
         uint8_t type;
         ucontext_t * cont;
-
         if (networker_pointers.cnt != 0) {
                 for (i = 0; i < networker_pointers.cnt; i++) {
                         ret = context_alloc(&cont);

@@ -102,7 +102,6 @@ int response_init_cpu(void)
 
 static void test_handler(struct dune_tf *tf)
 {
-        printf("Preemption handler\n");
         asm volatile ("cli":::);
         dune_apic_eoi();
         swapcontext_fast_to_control(cont, &uctx_main);
@@ -224,11 +223,13 @@ static inline void handle_new_packet(void)
 
 static inline void handle_fake_new_packet(void) {
         printf("Got request\n");
+        while(1);
 }
 
 
 static inline void handle_context(void)
 {
+        printf("Got context\n");
         int ret;
         finished = false;
         cont = dispatcher_requests[cpu_nr_].rnbl;
