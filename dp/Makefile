@@ -29,11 +29,13 @@ PCIDMA	= ../deps/pcidma
 DPDK_INC = -I$(DPDK)/build/include -I$(DPDK)/lib/librte_eal/common -I$(DPDK)/drivers/net/ixgbe -I$(DPDK)/drivers/net/i40e
 INC	= -I../inc -I$(DUNE)/libdune -I../inc/lwip -I../inc/lwip/ipv4 -I../inc/lwip/ipv6 $(DPDK_INC) -include$(DUNE)/kern/dune.h
 INC	+= -I$(PCIDMA)
+INC += -I ../deps/leveldb/include
 CC	= gcc
 CFLAGS	= -g -Wall -fno-pie -fno-dwarf2-cfi-asm -fno-asynchronous-unwind-tables -O0 -mno-red-zone $(INC) -D__KERNEL__  -DFAKE_WORK $(EXTRA_CFLAGS)
-LD	= gcc
+LD	= g++
 LDFLAGS	= -T ix.ld -no-pie
-LDLIBS	= -lrt -lpthread -lm -lnuma -ldl -lconfig
+LDLIBS	= -lrt -lpthread -lm -lnuma -ldl -lconfig ../deps/leveldb/build/libleveldb.a -lgflags -lsnappy -lz -llz4
+WRAP_FLAGS = -Wl,-wrap,malloc -Wl,-wrap=malloc -Wl,-wrap=free -Wl,-wrap=calloc -Wl,-wrap=realloc
 
 ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
@@ -80,7 +82,7 @@ DPDK_LIBS+=$(DPDK)/build/lib/librte_mempool.a
 DPDK_LIBS+=$(DPDK)/build/lib/librte_ring.a
 
 shinjuku: $(DEPENDENCY) $(OBJS) $(DUNE_LIB) ix.ld
-	$(LD) $(LDFLAGS) -o shinjuku $(OBJS) $(DUNE_LIB) $(DPDK_LIBS) $(LDLIBS)
+	$(LD) $(WRAP_FLAGS) $(LDFLAGS) -o shinjuku $(OBJS) -rdynamic $(DUNE_LIB) $(DPDK_LIBS) $(LDLIBS)
 
 clean:
 	cp core/context_fast.S /tmp/context_fast.S

@@ -21,7 +21,7 @@
 
 # A Makefile for libIX.
 
-INC	= -I. -I../inc
+INC	= -I. -I../inc -I ../../deps/leveldb/include
 CC 	= gcc
 CFLAGS	= -g -Wall -O3 $(INC)
 AR	= ar
