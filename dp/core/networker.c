@@ -42,28 +42,34 @@
 #include <net/udp.h>
 #include <net/ethernet.h>
 
+#include <ix/leveldb.h>
+
 /**
  * do_networking - implements networking core's functionality
  */
 void do_networking(void)
 {
-        int i, num_recv;
-        while(1) {
-                eth_process_poll();
-                num_recv = eth_process_recv();
-                if (num_recv == 0)
-                        continue;
-                while (networker_pointers.cnt != 0);
-                for (i = 0; i < networker_pointers.free_cnt; i++) {
-                        mbuf_free(networker_pointers.pkts[i]);
-                }
-                networker_pointers.free_cnt = 0;
-                for (i = 0; i < num_recv; i++) {
-                        networker_pointers.pkts[i] = recv_mbufs[i];
-                        networker_pointers.types[i] = (uint8_t) recv_type[i];
-                }
-                networker_pointers.cnt = num_recv;
-        }
+	int i, num_recv;
+	while (1)
+	{
+		eth_process_poll();
+		num_recv = eth_process_recv();
+		if (num_recv == 0)
+			continue;
+		while (networker_pointers.cnt != 0)
+			;
+		for (i = 0; i < networker_pointers.free_cnt; i++)
+		{
+			mbuf_free(networker_pointers.pkts[i]);
+		}
+		networker_pointers.free_cnt = 0;
+		for (i = 0; i < num_recv; i++)
+		{
+			networker_pointers.pkts[i] = recv_mbufs[i];
+			networker_pointers.types[i] = (uint8_t)recv_type[i];
+		}
+		networker_pointers.cnt = num_recv;
+	}
 }
 
 /* Support for fake networking */
@@ -73,38 +79,66 @@ void do_networking(void)
 // Basic mempool. TODO: Optimize
 volatile struct mbuf fake_pkts[MAX_LIVE_REQS];
 int live_reqs[MAX_LIVE_REQS] = {0};
-int cursor = 0; 
+int cursor = 0;
 
-volatile struct mbuf* gen_fake_reqs(void) {
-        struct mbuf* ret = NULL;
-        for(int x = 0; x < MAX_LIVE_REQS; cursor = (cursor+1) & (MAX_LIVE_REQS-1), x++) {
-                if(live_reqs[cursor]) {
-                        continue;
-                }
-                live_reqs[cursor] = 1;
-                ret = &(fake_pkts[cursor]);
-                printf("Sent fake req\n");
-                break;
-        }
-        return ret;
+volatile struct mbuf *gen_fake_reqs(void)
+{
+	struct mbuf *ret = NULL;
+
+	for (int x = 0; x < MAX_LIVE_REQS; cursor = (cursor + 1) & (MAX_LIVE_REQS - 1), x++)
+	{
+		printf("cursor %d \n", cursor);
+		if (live_reqs[cursor])
+		{
+			continue;
+		}
+		live_reqs[cursor] = 1;
+		ret = &(fake_pkts[cursor]);
+
+		printf("ret %d\n", *ret);
+		break;
+	}
+
+	printf("Sent fake req\n");
+	return ret;
 }
 
-void do_work_gen(void) {
-        int i;
-        while(1) {
-                while(networker_pointers.cnt !=0);
-                for (i = 0; i < networker_pointers.free_cnt; i++) {
-                        live_reqs[i] = 0;
-                }       
-                networker_pointers.free_cnt = 0;
-                for (i = 0; i < ETH_RX_MAX_BATCH; i++) {
-                        struct mbuf* temp = gen_fake_reqs();
-                        if(!temp) {
-                                break; // no more packets to receive
-                        }
-                        networker_pointers.pkts[i] = temp;
-                        networker_pointers.types[i] = 0; // For now, only 1 port/type    
-                }
-                networker_pointers.cnt = i;
-        }
+void do_work_gen(void)
+{
+	int i;
+	printf("Generating fake works\n");
+	while (1)
+	{
+		while (networker_pointers.cnt != 0)
+			;
+		for (i = 0; i < networker_pointers.free_cnt; i++)
+		{
+			live_reqs[i] = 0;
+		}
+		networker_pointers.free_cnt = 0;
+		for (i = 0; i < ETH_RX_MAX_BATCH; i++)
+		{
+			// struct mbuf *temp = gen_fake_reqs();
+			struct mbuf * temp;
+			temp = mbuf_alloc_local();
+
+			db_key *key = malloc(sizeof(db_key));
+			(*key) = "my_key";
+
+			struct db_req *req;
+
+			req = mbuf_mtod(temp, struct db_req *);
+
+			req->type = GET;
+			req->params = key;
+
+			if (!temp)
+			{
+				break; // no more packets to receive
+			}
+			networker_pointers.pkts[i] = temp;
+			networker_pointers.types[i] = 0; // For now, only 1 port/type
+		}
+		networker_pointers.cnt = i;
+	}
 }

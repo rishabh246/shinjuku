@@ -452,6 +452,9 @@ int main(int argc, char *argv[])
 	assert(!err);
 	flag = 1;
 
+	log_info("init leveldb\n");
+
+
   do_dispatching(CFG.num_cpus);
 	log_info("finished handling contexts, looping forever...\n");
 	return 0;

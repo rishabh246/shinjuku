@@ -61,7 +61,7 @@
 #define PREEMPT_VECTOR 0xf2
 
 __thread ucontext_t uctx_main;
-__thread ucontext_t * cont;
+__thread ucontext_t *cont;
 __thread int cpu_nr_;
 __thread volatile uint8_t finished;
 
@@ -77,14 +77,16 @@ extern int swapcontext_very_fast(ucontext_t *ouctx, ucontext_t *uctx);
 extern void dune_apic_eoi();
 extern int dune_register_intr_handler(int vector, dune_intr_cb cb);
 
-struct response {
-        uint64_t runNs;
-        uint64_t genNs;
+struct response
+{
+    uint64_t runNs;
+    uint64_t genNs;
 };
 
-struct request {
-        uint64_t runNs;
-        uint64_t genNs;
+struct request
+{
+    uint64_t runNs;
+    uint64_t genNs;
 };
 
 /**
@@ -92,10 +94,10 @@ struct request {
  */
 int response_init(void)
 {
-        return mempool_create_datastore(&response_datastore, 128000,
-                                        sizeof(struct response), 1,
-                                        MEMPOOL_DEFAULT_CHUNKSIZE,
-                                        "response");
+    return mempool_create_datastore(&response_datastore, 128000,
+                                    sizeof(struct response), 1,
+                                    MEMPOOL_DEFAULT_CHUNKSIZE,
+                                    "response");
 }
 
 /**
@@ -103,17 +105,18 @@ int response_init(void)
  */
 int response_init_cpu(void)
 {
-        struct mempool *m = &percpu_get(response_pool);
-        return mempool_create(m, &response_datastore, MEMPOOL_SANITY_PERCPU,
-                              percpu_get(cpu_id));
+    struct mempool *m = &percpu_get(response_pool);
+    return mempool_create(m, &response_datastore, MEMPOOL_SANITY_PERCPU,
+                          percpu_get(cpu_id));
 }
 
 static void test_handler(struct dune_tf *tf)
 {
-        printf("Preemption handler\n");
-        asm volatile ("cli":::);
-        dune_apic_eoi();
-        swapcontext_fast_to_control(cont, &uctx_main);
+    printf("Preemption handler\n");
+    asm volatile("cli" ::
+                     :);
+    dune_apic_eoi();
+    swapcontext_fast_to_control(cont, &uctx_main);
 }
 
 /**
@@ -125,191 +128,227 @@ static void test_handler(struct dune_tf *tf)
 static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
                          uint32_t lsw_id)
 {
-        asm volatile ("sti":::);
+    printf("I got a work\n");
+    asm volatile("sti" ::
+                     :);
 
-        struct ip_tuple * id = (struct ip_tuple *) ((uint64_t) msw_id << 32 | lsw_id);
-        void * data = (void *)((uint64_t) msw << 32 | lsw);
-        int ret;
+    struct ip_tuple *id = (struct ip_tuple *)((uint64_t)msw_id << 32 | lsw_id);
+    void *data = (void *)((uint64_t)msw << 32 | lsw);
+    int ret;
 
-        struct request * req = (struct request *) data;
+    struct request *req = (struct request *)data;
 
-        // Added for leveldb
-        leveldb_readoptions_t * readoptions = leveldb_readoptions_create();
-	leveldb_iterator_t * iter = leveldb_create_iterator(db, readoptions);
-	for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter); leveldb_iter_next(iter)) {
-		char * retr_key;
-		size_t klen;
-		retr_key = leveldb_iter_key(iter, &klen);
-		if (req->runNs > 0)
-			break;
-	}
-	leveldb_iter_destroy(iter);
-	leveldb_readoptions_destroy(readoptions);
+    // Added for leveldb
+    // leveldb_readoptions_t *readoptions = leveldb_readoptions_create();
+    // leveldb_iterator_t *iter = leveldb_create_iterator(db, readoptions);
+    // for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter); leveldb_iter_next(iter))
+    // {
+    //     char *retr_key;
+    //     size_t klen;
+    //     retr_key = leveldb_iter_key(iter, &klen);
+    //     if (req->runNs > 0)
+    //         break;
+    // }
+    // leveldb_iter_destroy(iter);
+    // leveldb_readoptions_destroy(readoptions);
 
-        // uint64_t i = 0;
-        // do {
-        //         asm volatile ("nop");
-        //         i++;
-        // } while ( i / 0.233 < req->runNs);
+    uint64_t i = 0;
+    do {
+            asm volatile ("nop");
+            i++;
+    } while ( i / 0.233 < req->runNs);
 
-        asm volatile ("cli":::);
-        struct response * resp = mempool_alloc(&percpu_get(response_pool));
-        if (!resp) {
-                log_warn("Cannot allocate response buffer\n");
-                finished = true;
-                swapcontext_very_fast(cont, &uctx_main);
-        }
-
-        resp->genNs = req->genNs;
-        resp->runNs = req->runNs;
-        struct ip_tuple new_id = {
-                .src_ip = id->dst_ip,
-                .dst_ip = id->src_ip,
-                .src_port = id->dst_port,
-                .dst_port = id->src_port
-        };
-
-        ret = udp_send((void *)resp, sizeof(struct response), &new_id,
-                       (uint64_t) resp);
-        if (ret)
-                log_warn("udp_send failed with error %d\n", ret);
-
+    asm volatile("cli" ::
+                     :);
+    struct response *resp = mempool_alloc(&percpu_get(response_pool));
+    if (!resp)
+    {
+        log_warn("Cannot allocate response buffer\n");
         finished = true;
         swapcontext_very_fast(cont, &uctx_main);
+    }
+
+    resp->genNs = req->genNs;
+    resp->runNs = req->runNs;
+    struct ip_tuple new_id = {
+        .src_ip = id->dst_ip,
+        .dst_ip = id->src_ip,
+        .src_port = id->dst_port,
+        .dst_port = id->src_port};
+
+    ret = udp_send((void *)resp, sizeof(struct response), &new_id,
+                   (uint64_t)resp);
+    // ret = udp_send_one((void *)resp, sizeof(struct response), &new_id,
+              //             (uint64_t) resp);
+    
+
+    if (ret)
+        log_warn("udp_send failed with error %d\n", ret);
+
+    finished = true;
+    swapcontext_very_fast(cont, &uctx_main);
 }
 
-static inline void parse_packet(struct mbuf * pkt, void ** data_ptr,
-                                struct ip_tuple ** id_ptr)
+static inline void parse_packet(struct mbuf *pkt, void **data_ptr,
+                                struct ip_tuple **id_ptr)
 {
-        // Quickly parse packet without doing checks
-        struct eth_hdr * ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
-        struct ip_hdr *  iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
-        int hdrlen = iphdr->header_len * sizeof(uint32_t);
-        struct udp_hdr * udphdr = mbuf_nextd_off(iphdr, struct udp_hdr *,
-                                                 hdrlen);
-        // Get data and udp header
-        (*data_ptr) = mbuf_nextd(udphdr, void *);
-        uint16_t len = ntoh16(udphdr->len);
+    // Quickly parse packet without doing checks
+    struct eth_hdr *ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
+    struct ip_hdr *iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
+    int hdrlen = iphdr->header_len * sizeof(uint32_t);
+    struct udp_hdr *udphdr = mbuf_nextd_off(iphdr, struct udp_hdr *,
+                                            hdrlen);
+    // Get data and udp header
+    (*data_ptr) = mbuf_nextd(udphdr, void *);
+    uint16_t len = ntoh16(udphdr->len);
 
-        if (unlikely(!mbuf_enough_space(pkt, udphdr, len))) {
-                log_warn("worker: not enough space in mbuf\n");
-                (*data_ptr) = NULL;
-                return;
-        }
+    if (unlikely(!mbuf_enough_space(pkt, udphdr, len)))
+    {
+        log_warn("worker: not enough space in mbuf\n");
+        (*data_ptr) = NULL;
+        return;
+    }
 
-        (*id_ptr) = mbuf_mtod(pkt, struct ip_tuple *);
-        (*id_ptr)->src_ip = ntoh32(iphdr->src_addr.addr);
-        (*id_ptr)->dst_ip = ntoh32(iphdr->dst_addr.addr);
-        (*id_ptr)->src_port = ntoh16(udphdr->src_port);
-        (*id_ptr)->dst_port = ntoh16(udphdr->dst_port);
-        pkt->done = (void *) 0xDEADBEEF;
+    (*id_ptr) = mbuf_mtod(pkt, struct ip_tuple *);
+    (*id_ptr)->src_ip = ntoh32(iphdr->src_addr.addr);
+    (*id_ptr)->dst_ip = ntoh32(iphdr->dst_addr.addr);
+    (*id_ptr)->src_port = ntoh16(udphdr->src_port);
+    (*id_ptr)->dst_port = ntoh16(udphdr->dst_port);
+    pkt->done = (void *)0xDEADBEEF;
 }
 
 static inline void init_worker(void)
 {
-        cpu_nr_ = percpu_get(cpu_nr) - 2;
-        worker_responses[cpu_nr_].flag = PROCESSED;
-        dune_register_intr_handler(PREEMPT_VECTOR, test_handler);
-        eth_process_reclaim();
-        asm volatile ("cli":::);
+    cpu_nr_ = percpu_get(cpu_nr) - 2;
+    worker_responses[cpu_nr_].flag = PROCESSED;
+    dune_register_intr_handler(PREEMPT_VECTOR, test_handler);
+    eth_process_reclaim();
+    asm volatile("cli" ::
+                     :);
 }
 
 static inline void handle_new_packet(void)
 {
-        int ret;
-        void * data;
-        struct ip_tuple * id;
-        struct mbuf * pkt = (struct mbuf *) dispatcher_requests[cpu_nr_].mbuf;
-        parse_packet(pkt, &data, &id);
-        if (data) {
-                uint32_t msw = ((uint64_t) data & 0xFFFFFFFF00000000) >> 32;
-                uint32_t lsw = (uint64_t) data & 0x00000000FFFFFFFF;
-                uint32_t msw_id = ((uint64_t) id & 0xFFFFFFFF00000000) >> 32;
-                uint32_t lsw_id = (uint64_t) id & 0x00000000FFFFFFFF;
-                cont = dispatcher_requests[cpu_nr_].rnbl;
-                getcontext_fast(cont);
-                set_context_link(cont, &uctx_main);
-                makecontext(cont, (void (*)(void)) generic_work, 4, msw, lsw,
-                            msw_id, lsw_id);
-                finished = false;
-                ret = swapcontext_very_fast(&uctx_main, cont);
-                if (ret) {
-                        log_err("Failed to do swap into new context\n");
-                        exit(-1);
-                }
-        } else {
-                log_info("OOPS No Data\n");
-                finished = true;
+    int ret;
+    void *data;
+    struct ip_tuple *id;
+    struct mbuf *pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
+    parse_packet(pkt, &data, &id);
+
+    log_info("parse packet");
+
+    if (data)
+    {
+        uint32_t msw = ((uint64_t)data & 0xFFFFFFFF00000000) >> 32;
+        uint32_t lsw = (uint64_t)data & 0x00000000FFFFFFFF;
+        uint32_t msw_id = ((uint64_t)id & 0xFFFFFFFF00000000) >> 32;
+        uint32_t lsw_id = (uint64_t)id & 0x00000000FFFFFFFF;
+        cont = dispatcher_requests[cpu_nr_].rnbl;
+        getcontext_fast(cont);
+        set_context_link(cont, &uctx_main);
+        makecontext(cont, (void (*)(void))generic_work, 4, msw, lsw,
+                    msw_id, lsw_id);
+        finished = false;
+        ret = swapcontext_very_fast(&uctx_main, cont);
+        if (ret)
+        {
+            log_err("Failed to do swap into new context\n");
+            exit(-1);
         }
+    }
+    else
+    {
+        log_info("OOPS No Data\n");
+        finished = true;
+    }
 }
 
-static inline void handle_fake_new_packet(void) {
-        printf("Got request\n");
-}
+static inline void handle_fake_new_packet(void)
+{
+    struct mbuf* pkt; 
+    struct db_req* req;
+    
+    pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
+    req = mbuf_mtod(pkt, struct db_req *);
+    
+    assert((req->type) == GET);
+    printf("Received key: %s \n", *(db_key *)(req->params));
 
+    
+}
 
 static inline void handle_context(void)
 {
-        int ret;
-        finished = false;
-        cont = dispatcher_requests[cpu_nr_].rnbl;
-        set_context_link(cont, &uctx_main);
-        ret = swapcontext_fast(&uctx_main, cont);
-        if (ret) {
-                log_err("Failed to swap to existing context\n");
-                exit(-1);
-        }
+    int ret;
+    finished = false;
+    cont = dispatcher_requests[cpu_nr_].rnbl;
+    set_context_link(cont, &uctx_main);
+    ret = swapcontext_fast(&uctx_main, cont);
+    if (ret)
+    {
+        log_err("Failed to swap to existing context\n");
+        exit(-1);
+    }
 }
 
 static inline void handle_request(void)
 {
-        while (dispatcher_requests[cpu_nr_].flag == WAITING);
-        dispatcher_requests[cpu_nr_].flag = WAITING;
-        if (dispatcher_requests[cpu_nr_].category == PACKET)
-                handle_new_packet();
-        else
-                handle_context();
+    while (dispatcher_requests[cpu_nr_].flag == WAITING)
+        ;
+    dispatcher_requests[cpu_nr_].flag = WAITING;
+    if (dispatcher_requests[cpu_nr_].category == PACKET)
+        handle_new_packet();
+    else
+        handle_context();
 }
 
 static inline void handle_fake_request(void)
 {
-        while (dispatcher_requests[cpu_nr_].flag == WAITING);
-        dispatcher_requests[cpu_nr_].flag = WAITING;
-        if (dispatcher_requests[cpu_nr_].category == PACKET)
-                handle_fake_new_packet();
-        else
-                handle_context();
+    while (dispatcher_requests[cpu_nr_].flag == WAITING)
+        ;
+    dispatcher_requests[cpu_nr_].flag = WAITING;
+    if (dispatcher_requests[cpu_nr_].category == PACKET)
+        handle_fake_new_packet();
+    else
+        handle_context();
 }
 
 static inline void finish_request(void)
 {
-        worker_responses[cpu_nr_].timestamp = \
-                        dispatcher_requests[cpu_nr_].timestamp;
-        worker_responses[cpu_nr_].type = \
-                        dispatcher_requests[cpu_nr_].type;
-        worker_responses[cpu_nr_].mbuf = \
-                        dispatcher_requests[cpu_nr_].mbuf;
-        worker_responses[cpu_nr_].rnbl = cont;
-        worker_responses[cpu_nr_].category = CONTEXT;
-        if (finished) {
-                worker_responses[cpu_nr_].flag = FINISHED;
-        } else {
-                worker_responses[cpu_nr_].flag = PREEMPTED;
-        }
+    worker_responses[cpu_nr_].timestamp =
+        dispatcher_requests[cpu_nr_].timestamp;
+    worker_responses[cpu_nr_].type =
+        dispatcher_requests[cpu_nr_].type;
+    worker_responses[cpu_nr_].mbuf =
+        dispatcher_requests[cpu_nr_].mbuf;
+    worker_responses[cpu_nr_].rnbl = cont;
+    worker_responses[cpu_nr_].category = CONTEXT;
+    if (finished)
+    {
+        worker_responses[cpu_nr_].flag = FINISHED;
+    }
+    else
+    {
+        worker_responses[cpu_nr_].flag = PREEMPTED;
+    }
 }
 
 void do_work(void)
 {
-        init_worker();
-        log_info("do_work: Waiting for dispatcher work\n");
+    init_worker();
+    log_info("do_work: Waiting for dispatcher work\n");
 
-        while (true) {
+    init_db();
+    log_info("initialize leveldb\n");
+
+    while (true)
+    {
 #ifdef FAKE_WORK
-                handle_fake_request();
-#else           eth_process_reclaim();
-                eth_process_send();
-                handle_request();
+        handle_fake_request();
+#else eth_process_reclaim();
+        eth_process_send();
+        handle_request();
 #endif
-                finish_request();
-        }
+        finish_request();
+    }
 }
