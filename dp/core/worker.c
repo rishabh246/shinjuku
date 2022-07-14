@@ -112,10 +112,13 @@ int response_init_cpu(void)
 
 static void test_handler(struct dune_tf *tf)
 {
-    printf("Preemption handler\n");
+    printf("preempted\n");
     asm volatile("cli" ::
                      :);
+
+
     dune_apic_eoi();
+
     swapcontext_fast_to_control(cont, &uctx_main);
 }
 
@@ -128,7 +131,6 @@ static void test_handler(struct dune_tf *tf)
 static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
                          uint32_t lsw_id)
 {
-    printf("I got a work\n");
     asm volatile("sti" ::
                      :);
 
@@ -153,10 +155,11 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     // leveldb_readoptions_destroy(readoptions);
 
     uint64_t i = 0;
-    do {
-            asm volatile ("nop");
-            i++;
-    } while ( i / 0.233 < req->runNs);
+    do
+    {
+        asm volatile("nop");
+        i++;
+    } while (i / 0.233 < req->runNs);
 
     asm volatile("cli" ::
                      :);
@@ -179,8 +182,7 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     ret = udp_send((void *)resp, sizeof(struct response), &new_id,
                    (uint64_t)resp);
     // ret = udp_send_one((void *)resp, sizeof(struct response), &new_id,
-              //             (uint64_t) resp);
-    
+    //             (uint64_t) resp);
 
     if (ret)
         log_warn("udp_send failed with error %d\n", ret);
@@ -192,6 +194,7 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
 static inline void parse_packet(struct mbuf *pkt, void **data_ptr,
                                 struct ip_tuple **id_ptr)
 {
+    log_info("new packet \n");
     // Quickly parse packet without doing checks
     struct eth_hdr *ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
     struct ip_hdr *iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
@@ -263,18 +266,123 @@ static inline void handle_new_packet(void)
     }
 }
 
+static void simple_generic_work(long ms, int id)
+{
+    asm volatile("sti" ::
+                     :);
+
+    uint64_t i = 0;
+
+    printf("Generate work for: %d \n", 12);
+
+    do
+    {
+        printf("id => %d \n", id);
+        usleep(100);
+        i++;
+    } while (i / 0.233 < 10000);
+
+    asm volatile("cli" :::);
+   
+    printf("Work ended for %d\n", 12);
+    finished = true;
+    swapcontext_very_fast(cont, &uctx_main);
+}
+
+static void fake_generic_work(db_req *db_pkg)
+{
+    // this is important for scheduling
+    asm volatile("sti" ::
+                     :);
+
+    char *db_err = NULL;
+
+    switch (db_pkg->type)
+    {
+    case (PUT):
+    {
+        leveldb_put(db, woptions,
+                    ((struct kv_parameter *)(db_pkg->params))->key, KEYSIZE,
+                    ((struct kv_parameter *)(db_pkg->params))->value, VALSIZE,
+                    &db_err);
+        break;
+    }
+
+    case (GET):
+    {
+        char *read = leveldb_get(db, roptions,
+                                 (db_key)(db_pkg->params), KEYSIZE,
+                                 &read_len, &db_err);
+
+        break;
+    }
+    case (DELETE):
+    {
+        leveldb_delete(db, woptions,
+                       (db_key)(db_pkg->params), KEYSIZE,
+                       &db_err);
+
+        break;
+    }
+    case (CUSTOM):
+    {
+        struct custom_payload payload = *(struct custom_payload *)(db_pkg->params);
+
+        printf("Starting custom command with id: %d for u=%d \n", payload.id, payload.ms);
+        // int i = 0;
+
+        // int id = payload.id;
+        // do {
+        //         // asm volatile ("nop nop nop nop");
+        //         printf("id ===> %d \n", id);
+        //         usleep(100000);
+
+        //         i++;
+
+        // } while ( i / 0.233 < payload.ms);
+
+        // printf("Work ended with id: %d \n", payload.id);
+    }
+    default:
+        break;
+    }
+
+    // swapcontext_very_fast(cont, &uctx_main);
+    finished = true;
+}
+
 static inline void handle_fake_new_packet(void)
 {
-    struct mbuf* pkt; 
-    struct db_req* req;
-    
+    int ret;
+    struct mbuf *pkt;
+    struct db_req *req;
+
     pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
     req = mbuf_mtod(pkt, struct db_req *);
-    
-    assert((req->type) == GET);
-    printf("Received key: %s \n", *(db_key *)(req->params));
 
+    // assert((req->type) == GET);
+
+    if(req == NULL || (req->type) != CUSTOM){
+        log_info("OOPS No Data\n");
+        finished = true;
+        return;
+    }
+        
+    log_info("New packet arrived \n");
+
+    struct custom_payload * payload = (struct custom_payload *)(req->params);
     
+    cont = (struct mbuf *)dispatcher_requests[cpu_nr_].rnbl;
+    getcontext_fast(cont);
+    set_context_link(cont, &uctx_main);
+    makecontext(cont, (void (*)(void))simple_generic_work, 2, payload->ms, payload->id);
+    finished = false;
+    ret = swapcontext_very_fast(&uctx_main, cont);
+    if (ret)
+    {
+        log_err("Failed to do swap into new context\n");
+        exit(-1);
+    }
 }
 
 static inline void handle_context(void)
