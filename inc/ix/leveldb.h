@@ -17,12 +17,14 @@ size_t read_len;
 typedef char* db_key;
 typedef char* db_value;
 
+// Type of Level-db operations
 typedef enum
 {
     PUT,
     GET,
     DELETE,
     ITERATOR,
+    CUSTOM,         // This type added for tests, see below.
     
 } REQ_TYPE;
 
@@ -39,6 +41,13 @@ typedef struct kv_parameter
     db_value    value;
 
 } kv_parameter;
+
+typedef struct custom_payload
+{
+    int id;
+    int ms;
+} custom_payload;
+
 
 static void init_db()
 {
@@ -83,7 +92,27 @@ static void process_db_pkg(db_req *db_pkg)
         
         break;
     }
+    case (CUSTOM):
+    {
+        struct custom_payload * payload = (struct custom_payload*)(db_pkg->params);
+        
+        printf("Starting custom command with id: %d for u=%d \n", payload->id, payload->ms);
+        int i = 0;
+
+        do {
+                asm volatile ("nop");
+                i++;
+        } while ( i / 0.233 < payload->ms);
+
+        printf("Work ended with id: %lu \n", payload->id);
+    }
     default:
         break;
     }
+
 }
+
+
+// Test structures
+
+// This struct added for test purposes
