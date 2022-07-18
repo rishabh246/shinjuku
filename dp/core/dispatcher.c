@@ -32,6 +32,12 @@
 #include <ix/context.h>
 #include <ix/dispatch.h>
 
+
+#include <ix/networker.h>
+#include <net/ip.h>
+#include <net/udp.h>
+
+
 extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 
 #define PREEMPT_VECTOR 0xf2
@@ -82,12 +88,11 @@ static inline void dispatch_request(int i, uint64_t cur_time)
         void * rnbl, * mbuf;
         uint8_t type, category;
         uint64_t timestamp;
-        int ret = smart_tskq_dequeue(tskq, &rnbl, &mbuf, &type,
-                              &category, &timestamp, cur_time);
-        if(ret){
-                // printf("%d\n", ret);
+        
+        if(smart_tskq_dequeue(tskq, &rnbl, &mbuf, &type,
+                              &category, &timestamp, cur_time))
                 return;
-        }
+
         worker_responses[i].flag = RUNNING;
         dispatcher_requests[i].rnbl = rnbl;
         dispatcher_requests[i].mbuf = mbuf;
@@ -103,8 +108,8 @@ static inline void preempt_worker(int i, uint64_t cur_time)
 {
         if (preempt_check[i] && (((cur_time - timestamps[i]) / 2.5) > PREEMPTION_DELAY)) {
                 // Avoid preempting more times.
-                printf("Trying to preempt\n");
                 preempt_check[i] = false;
+                // printf("Trying to preempt\n");
                 dune_apic_send_posted_ipi(PREEMPT_VECTOR, CFG.cpu[i + 2]);
         }
 }

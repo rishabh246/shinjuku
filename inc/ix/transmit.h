@@ -38,6 +38,12 @@
 #include <net/udp.h>
 #include <net/ethernet.h>
 
+struct myresponse
+{
+    uint64_t id;
+    char msg [256];
+};
+
 /**
  * ip_setup_header outputs a typical IP header
  * @iphdr: a pointer to the header
@@ -78,6 +84,27 @@ static inline void udp_mbuf_done(struct mbuf * pkt)
         mempool_free(&percpu_get(response_pool), (void *)pkt->done_data);
         mbuf_free(pkt);
 }
+
+
+static inline int fake_network_send(void * data, size_t len)
+{
+        int ret = 0;
+        struct mbuf *pkt;
+        struct myresponse * _response;
+
+        pkt = mbuf_alloc_local();
+
+        _response = mbuf_mtod(pkt, struct myresponse *);
+        _response->id = ((struct myresponse *)data)->id;
+        strcpy(_response->msg, ((struct myresponse *)data)->msg);
+       
+        ret = eth_send(percpu_get(eth_txqs)[0], pkt);
+
+        mbuf_free(pkt);
+        return ret;
+}
+
+
 
 /**
  * udp_send sends a UDP packet
