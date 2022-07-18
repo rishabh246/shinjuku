@@ -14,8 +14,8 @@ leveldb_readoptions_t *roptions;
 leveldb_writeoptions_t *woptions;
 size_t read_len;
 
-typedef char* db_key;
-typedef char* db_value;
+typedef char db_key     [1024];
+typedef char db_value   [1024];
 
 // Type of Level-db operations
 typedef enum
@@ -61,56 +61,56 @@ inline struct db_req * gen_db_pkg(REQ_TYPE req, void *parameters)
     return (struct db_req *)(req, parameters);
 }
 
-static void process_db_pkg(db_req *db_pkg)
-{
-    char * db_err = NULL;
+// static void process_db_pkg(db_req *db_pkg)
+// {
+//     char * db_err = NULL;
 
-    switch (db_pkg->type)
-    {
-    case (PUT):
-    {
-        leveldb_put(db, woptions, 
-            ((struct kv_parameter *)(db_pkg->params))->key, KEYSIZE, 
-            ((struct kv_parameter *)(db_pkg->params))->value, VALSIZE,
-            &db_err);
-        break;
-    }
+//     switch (db_pkg->type)
+//     {
+//     case (PUT):
+//     {
+//         leveldb_put(db, woptions, 
+//             ((struct kv_parameter *)(db_pkg->params))->key, KEYSIZE, 
+//             ((struct kv_parameter *)(db_pkg->params))->value, VALSIZE,
+//             &db_err);
+//         break;
+//     }
 
-    case (GET):
-    {
-        char* read = leveldb_get(db, roptions, 
-            (db_key)(db_pkg->params), KEYSIZE, 
-            &read_len, &db_err);
+//     case (GET):
+//     {
+//         char* read = leveldb_get(db, roptions, 
+//             (db_key)(db_pkg->params), KEYSIZE, 
+//             &read_len, &db_err);
 
-        break;
-    }
-    case (DELETE):
-    {
-        leveldb_delete(db, woptions, 
-            (db_key)(db_pkg->params), KEYSIZE,
-            &db_err);
+//         break;
+//     }
+//     case (DELETE):
+//     {
+//         leveldb_delete(db, woptions, 
+//             (db_key)(db_pkg->params), KEYSIZE,
+//             &db_err);
         
-        break;
-    }
-    case (CUSTOM):
-    {
-        struct custom_payload * payload = (struct custom_payload*)(db_pkg->params);
+//         break;
+//     }
+//     case (CUSTOM):
+//     {
+//         struct custom_payload * payload = (struct custom_payload*)(db_pkg->params);
         
-        printf("Starting custom command with id: %d for u=%d \n", payload->id, payload->ms);
-        int i = 0;
+//         printf("Starting custom command with id: %d for u=%d \n", payload->id, payload->ms);
+//         int i = 0;
 
-        do {
-                asm volatile ("nop");
-                i++;
-        } while ( i / 0.233 < payload->ms);
+//         do {
+//                 asm volatile ("nop");
+//                 i++;
+//         } while ( i / 0.233 < payload->ms);
 
-        printf("Work ended with id: %lu \n", payload->id);
-    }
-    default:
-        break;
-    }
+//         printf("Work ended with id: %lu \n", payload->id);
+//     }
+//     default:
+//         break;
+//     }
 
-}
+// }
 
 
 // Test structures

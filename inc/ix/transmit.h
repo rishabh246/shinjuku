@@ -70,6 +70,8 @@ static inline void ip_setup_header(struct ip_hdr *iphdr, uint8_t proto,
 
 DECLARE_PERCPU(struct mempool, response_pool);
 struct mempool_datastore response_datastore;
+struct mempool_datastore network_datastore;
+
 
 /**
  * udp_mbuf_done frees mbuf after the transmission of a UDP packet

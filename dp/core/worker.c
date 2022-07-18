@@ -72,6 +72,7 @@ DEFINE_PERCPU(struct mempool, response_pool __attribute__((aligned(64))));
 
 extern int getcontext_fast(ucontext_t *ucp);
 extern int swapcontext_fast(ucontext_t *ouctx, ucontext_t *uctx);
+extern int swapcontext_fast_to_control(ucontext_t *ouctx, ucontext_t *uctx);
 extern int swapcontext_very_fast(ucontext_t *ouctx, ucontext_t *uctx);
 
 extern void dune_apic_eoi();
@@ -89,15 +90,28 @@ struct request
     uint64_t genNs;
 };
 
+
+/**
+ * myresponse_init - allocates global response datastore
+ */
+int myresponse_init(void)
+{
+    return mempool_create_datastore(&response_datastore, 128000,
+                                    sizeof(struct myresponse), 1,
+                                    MEMPOOL_DEFAULT_CHUNKSIZE,
+                                    "response");
+}
+
 /**
  * response_init - allocates global response datastore
  */
 int response_init(void)
 {
-    return mempool_create_datastore(&response_datastore, 128000,
-                                    sizeof(struct response), 1,
-                                    MEMPOOL_DEFAULT_CHUNKSIZE,
-                                    "response");
+    return myresponse_init();
+    // return mempool_create_datastore(&response_datastore, 128000,
+    //                                 sizeof(struct response), 1,
+    //                                 MEMPOOL_DEFAULT_CHUNKSIZE,
+    //                                 "response");
 }
 
 /**
@@ -112,11 +126,9 @@ int response_init_cpu(void)
 
 static void test_handler(struct dune_tf *tf)
 {
-    printf("preempted\n");
     asm volatile("cli" ::
                      :);
-
-
+    
     dune_apic_eoi();
 
     swapcontext_fast_to_control(cont, &uctx_main);
@@ -154,15 +166,17 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     // leveldb_iter_destroy(iter);
     // leveldb_readoptions_destroy(readoptions);
 
-    uint64_t i = 0;
-    do
-    {
-        asm volatile("nop");
-        i++;
-    } while (i / 0.233 < req->runNs);
+    // uint64_t i = 0;
+    // do
+    // {
+    //     asm volatile("nop");
+    //     i++;
+    // } while (i / 0.233 < req->runNs);
 
     asm volatile("cli" ::
                      :);
+    
+    
     struct response *resp = mempool_alloc(&percpu_get(response_pool));
     if (!resp)
     {
@@ -268,32 +282,40 @@ static inline void handle_new_packet(void)
 
 static void simple_generic_work(long ms, int id)
 {
-    asm volatile("sti" ::
-                     :);
+    asm volatile("sti" :::);
 
     uint64_t i = 0;
 
-    printf("Generate work for: %d \n", 12);
+    printf("Generate work for: %d \n", id);
 
     do
-    {
-        printf("id => %d \n", id);
-        usleep(100);
+    {        
         i++;
-    } while (i / 0.233 < 10000);
-
+        asm volatile("nop");
+        // asm volatile("cli":::);
+        // printf("%d", id);
+        // usleep(50);
+    } while (i < ms);
+    
     asm volatile("cli" :::);
-   
-    printf("Work ended for %d\n", 12);
+    // printf("Work ended for %d\n", id);       
+
+    // resp->genNs = req->genNs;
+    // resp->runNs = req->runNs;
+    struct myresponse *resp = mempool_alloc(&percpu_get(response_pool));
+    resp->id = id;
+    strcpy(resp->msg, "finished");
+
+    fake_network_send((void *)resp, sizeof(struct myresponse));
+
     finished = true;
+    
     swapcontext_very_fast(cont, &uctx_main);
 }
 
 static void fake_generic_work(db_req *db_pkg)
 {
-    // this is important for scheduling
-    asm volatile("sti" ::
-                     :);
+    asm volatile("sti" :::);
 
     char *db_err = NULL;
 
@@ -311,7 +333,7 @@ static void fake_generic_work(db_req *db_pkg)
     case (GET):
     {
         char *read = leveldb_get(db, roptions,
-                                 (db_key)(db_pkg->params), KEYSIZE,
+                                 (db_key * )(db_pkg->params), KEYSIZE,
                                  &read_len, &db_err);
 
         break;
@@ -319,36 +341,31 @@ static void fake_generic_work(db_req *db_pkg)
     case (DELETE):
     {
         leveldb_delete(db, woptions,
-                       (db_key)(db_pkg->params), KEYSIZE,
+                       (db_key *)(db_pkg->params), KEYSIZE,
                        &db_err);
 
         break;
-    }
-    case (CUSTOM):
-    {
-        struct custom_payload payload = *(struct custom_payload *)(db_pkg->params);
-
-        printf("Starting custom command with id: %d for u=%d \n", payload.id, payload.ms);
-        // int i = 0;
-
-        // int id = payload.id;
-        // do {
-        //         // asm volatile ("nop nop nop nop");
-        //         printf("id ===> %d \n", id);
-        //         usleep(100000);
-
-        //         i++;
-
-        // } while ( i / 0.233 < payload.ms);
-
-        // printf("Work ended with id: %d \n", payload.id);
     }
     default:
         break;
     }
 
-    // swapcontext_very_fast(cont, &uctx_main);
+    asm volatile("cli" :::);
+    // printf("Work ended for %d\n", id);       
+
+    // resp->genNs = req->genNs;
+    // resp->runNs = req->runNs;
+    struct myresponse *resp = mempool_alloc(&percpu_get(response_pool));
+    resp->id = 1;
+    strcpy(resp->msg, "finished");
+
+    fake_network_send((void *)resp, sizeof(struct myresponse));
+
     finished = true;
+
+
+    finished = true;
+    swapcontext_very_fast(cont, &uctx_main);
 }
 
 static inline void handle_fake_new_packet(void)
@@ -359,6 +376,8 @@ static inline void handle_fake_new_packet(void)
 
     pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
     req = mbuf_mtod(pkt, struct db_req *);
+   
+    log_info("New packet arrived \n");
 
     // assert((req->type) == GET);
 
@@ -367,9 +386,7 @@ static inline void handle_fake_new_packet(void)
         finished = true;
         return;
     }
-        
-    log_info("New packet arrived \n");
-
+    
     struct custom_payload * payload = (struct custom_payload *)(req->params);
     
     cont = (struct mbuf *)dispatcher_requests[cpu_nr_].rnbl;
@@ -453,10 +470,13 @@ void do_work(void)
     {
 #ifdef FAKE_WORK
         handle_fake_request();
-#else eth_process_reclaim();
+        fake_eth_process_send();
+#else 
+        eth_process_reclaim();
         eth_process_send();
         handle_request();
 #endif
         finish_request();
+
     }
 }

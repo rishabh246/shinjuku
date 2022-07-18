@@ -9,5 +9,5 @@ if [ ! -f deps/leveldb/build ]; then
 fi
 
 make clean
-make -s
+make -j6 -s
 LD_PRELOAD=./deps/opnew/dest/libnew.so ./dp/shinjuku

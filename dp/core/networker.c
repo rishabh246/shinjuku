@@ -49,6 +49,7 @@
  */
 void do_networking(void)
 {
+	log_info("Do networking started \n");
 	int i, num_recv;
 	while (1)
 	{
@@ -105,40 +106,50 @@ volatile struct mbuf *gen_fake_reqs(void)
 
 void do_work_gen(void)
 {
-	int i;
+	int ikl;
 	printf("Generating fake works\n");
-	while (1)
+	
+	while (networker_pointers.cnt != 0)
+		;
+	for (ikl = 0; ikl < networker_pointers.free_cnt; ikl++)
 	{
-		while (networker_pointers.cnt != 0)
-			;
-		for (i = 0; i < networker_pointers.free_cnt; i++)
-		{
-			live_reqs[i] = 0;
-		}
-		networker_pointers.free_cnt = 0;
-		for (i = 0; i < ETH_RX_MAX_BATCH; i++)
-		{
-			// struct mbuf *temp = gen_fake_reqs();
-			struct mbuf * temp;
-			temp = mbuf_alloc_local();
-
-			db_key *key = malloc(sizeof(db_key));
-			(*key) = "my_key";
-
-			struct db_req *req;
-
-			req = mbuf_mtod(temp, struct db_req *);
-
-			req->type = GET;
-			req->params = key;
-
-			if (!temp)
-			{
-				break; // no more packets to receive
-			}
-			networker_pointers.pkts[i] = temp;
-			networker_pointers.types[i] = 0; // For now, only 1 port/type
-		}
-		networker_pointers.cnt = i;
+		live_reqs[ikl] = 0;
 	}
+	networker_pointers.free_cnt = 0;
+	for (ikl = 0; ikl < 7; ikl++)
+	{
+		// struct mbuf *temp = gen_fake_reqs();
+		struct mbuf * temp;
+		temp = mbuf_alloc_local();
+
+		// db_key *key = malloc(sizeof(db_key));
+		// (*key) = "my_key";
+
+		struct custom_payload * payload = malloc(sizeof(custom_payload));
+		payload->id = ikl+1;
+
+		payload->ms = 100000 + (1000000000*(ikl % 3));
+
+		struct db_req *req;
+
+		req = mbuf_mtod(temp, struct db_req *);
+
+		req->type = CUSTOM;
+		req->params = payload;
+
+		log_info("work generated with id %d. \n", ((struct custom_payload *)req->params)->id);
+		usleep(100);
+
+		// req->type = GET;
+		// req->params = key;
+
+		if (!temp)
+		{
+			break; // no more packets to receive
+		}
+		networker_pointers.pkts[ikl] = temp;
+		networker_pointers.types[ikl] = 0; // For now, only 1 port/type
+	}
+	networker_pointers.cnt = ikl;
+	
 }

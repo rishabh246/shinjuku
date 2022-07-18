@@ -344,8 +344,14 @@ void *start_cpu(void *arg)
 						exit(ret);
 		}
 		pthread_barrier_wait(&start_barrier);
-		// do_networking();
+		
+#ifndef FAKE_WORK
+		do_networking();
+#else
+		// generate_fake_requests_throughput();
 		do_work_gen();
+#endif
+
 	} else {
 		started_cpus++;
 		pthread_barrier_wait(&start_barrier);
@@ -441,7 +447,6 @@ int main(int argc, char *argv[])
   
 	log_info("init done\n");
 
-	leveldb_t *db;
 	leveldb_options_t *options = leveldb_options_create();
 	// create the DB if it's not already present
 	leveldb_options_set_create_if_missing(options, 1);
@@ -450,7 +455,22 @@ int main(int argc, char *argv[])
     db = leveldb_open(options, "/tmp/leveldb", &err);
 
 	assert(!err);
+
+	char * db_err;
+	int len;
+
+	leveldb_put(db, woptions, 
+		"mykey", 5, 
+		"myval", 5,
+		&db_err);
+
+	char * retdb = leveldb_get(db, roptions, 
+		"mykey", 5, &len, &db_err);
+
+	assert(strcmp(retdb,"myval"));
 	flag = 1;
+
+
 
 	log_info("init leveldb\n");
 
