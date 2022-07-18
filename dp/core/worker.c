@@ -58,6 +58,8 @@
 #include <net/udp.h>
 #include <net/ethernet.h>
 
+#include "helpers.h"
+
 #define PREEMPT_VECTOR 0xf2
 
 __thread ucontext_t uctx_main;
@@ -90,6 +92,12 @@ struct request
     uint64_t genNs;
 };
 
+static uint64_t getCurNs() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    uint64_t t = ts.tv_sec*1000*1000*1000 + ts.tv_nsec;
+    return t;
+}
 
 /**
  * myresponse_init - allocates global response datastore
@@ -287,18 +295,19 @@ static void simple_generic_work(long ms, int id)
     uint64_t i = 0;
 
     printf("Generate work for: %d \n", id);
+    long start = get_ms();
 
-    do
+    while (ms < get_ms() - start)
     {        
         i++;
         asm volatile("nop");
         // asm volatile("cli":::);
         // printf("%d", id);
         // usleep(50);
-    } while (i < ms);
+    } 
     
     asm volatile("cli" :::);
-    // printf("Work ended for %d\n", id);       
+    printf("Work ended for %d\n", id);       
 
     // resp->genNs = req->genNs;
     // resp->runNs = req->runNs;
@@ -313,60 +322,6 @@ static void simple_generic_work(long ms, int id)
     swapcontext_very_fast(cont, &uctx_main);
 }
 
-static void fake_generic_work(db_req *db_pkg)
-{
-    asm volatile("sti" :::);
-
-    char *db_err = NULL;
-
-    switch (db_pkg->type)
-    {
-    case (PUT):
-    {
-        leveldb_put(db, woptions,
-                    ((struct kv_parameter *)(db_pkg->params))->key, KEYSIZE,
-                    ((struct kv_parameter *)(db_pkg->params))->value, VALSIZE,
-                    &db_err);
-        break;
-    }
-
-    case (GET):
-    {
-        char *read = leveldb_get(db, roptions,
-                                 (db_key * )(db_pkg->params), KEYSIZE,
-                                 &read_len, &db_err);
-
-        break;
-    }
-    case (DELETE):
-    {
-        leveldb_delete(db, woptions,
-                       (db_key *)(db_pkg->params), KEYSIZE,
-                       &db_err);
-
-        break;
-    }
-    default:
-        break;
-    }
-
-    asm volatile("cli" :::);
-    // printf("Work ended for %d\n", id);       
-
-    // resp->genNs = req->genNs;
-    // resp->runNs = req->runNs;
-    struct myresponse *resp = mempool_alloc(&percpu_get(response_pool));
-    resp->id = 1;
-    strcpy(resp->msg, "finished");
-
-    fake_network_send((void *)resp, sizeof(struct myresponse));
-
-    finished = true;
-
-
-    finished = true;
-    swapcontext_very_fast(cont, &uctx_main);
-}
 
 static inline void handle_fake_new_packet(void)
 {
@@ -377,6 +332,7 @@ static inline void handle_fake_new_packet(void)
     pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
     req = mbuf_mtod(pkt, struct db_req *);
    
+    long k = getCurNs();
     log_info("New packet arrived \n");
 
     // assert((req->type) == GET);
@@ -480,3 +436,60 @@ void do_work(void)
 
     }
 }
+
+
+
+// static void fake_generic_work(db_req *db_pkg)
+// {
+//     asm volatile("sti" :::);
+
+//     char *db_err = NULL;
+
+//     switch (db_pkg->type)
+//     {
+//     case (PUT):
+//     {
+//         leveldb_put(db, woptions,
+//                     ((struct kv_parameter *)(db_pkg->params))->key, KEYSIZE,
+//                     ((struct kv_parameter *)(db_pkg->params))->value, VALSIZE,
+//                     &db_err);
+//         break;
+//     }
+
+//     case (GET):
+//     {
+//         char *read = leveldb_get(db, roptions,
+//                                  (db_key * )(db_pkg->params), KEYSIZE,
+//                                  &read_len, &db_err);
+
+//         break;
+//     }
+//     case (DELETE):
+//     {
+//         leveldb_delete(db, woptions,
+//                        (db_key *)(db_pkg->params), KEYSIZE,
+//                        &db_err);
+
+//         break;
+//     }
+//     default:
+//         break;
+//     }
+
+//     asm volatile("cli" :::);
+//     // printf("Work ended for %d\n", id);       
+
+//     // resp->genNs = req->genNs;
+//     // resp->runNs = req->runNs;
+//     struct myresponse *resp = mempool_alloc(&percpu_get(response_pool));
+//     resp->id = 1;
+//     strcpy(resp->msg, "finished");
+
+//     fake_network_send((void *)resp, sizeof(struct myresponse));
+
+//     finished = true;
+
+
+//     finished = true;
+//     swapcontext_very_fast(cont, &uctx_main);
+// }

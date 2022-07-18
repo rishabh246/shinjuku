@@ -43,6 +43,7 @@
 #include <net/ethernet.h>
 
 #include <ix/leveldb.h>
+#include <time.h>
 
 /**
  * do_networking - implements networking core's functionality
@@ -108,6 +109,8 @@ void do_work_gen(void)
 {
 	int ikl;
 	printf("Generating fake works\n");
+	srand(time(NULL));
+
 	
 	while (networker_pointers.cnt != 0)
 		;
@@ -125,10 +128,15 @@ void do_work_gen(void)
 		// db_key *key = malloc(sizeof(db_key));
 		// (*key) = "my_key";
 
+		asm volatile("cli":::);
+
 		struct custom_payload * payload = malloc(sizeof(custom_payload));
+
+		asm volatile("sti":::);
+
 		payload->id = ikl+1;
 
-		payload->ms = 100000 + (1000000000*(ikl % 3));
+		payload->ms = (rand() % 2) ? 1 : 100;
 
 		struct db_req *req;
 
@@ -137,7 +145,7 @@ void do_work_gen(void)
 		req->type = CUSTOM;
 		req->params = payload;
 
-		log_info("work generated with id %d. \n", ((struct custom_payload *)req->params)->id);
+		log_info("work generated with id %d, ms: %d\n", payload->id, payload->ms);
 		usleep(100);
 
 		// req->type = GET;
