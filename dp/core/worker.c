@@ -60,6 +60,8 @@
 
 #include "helpers.h"
 
+extern uint64_t TOTAL_PACKETS;
+
 #define PREEMPT_VECTOR 0xf2
 
 __thread ucontext_t uctx_main;
@@ -91,13 +93,6 @@ struct request
     uint64_t runNs;
     uint64_t genNs;
 };
-
-static uint64_t getCurNs() {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    uint64_t t = ts.tv_sec*1000*1000*1000 + ts.tv_nsec;
-    return t;
-}
 
 /**
  * myresponse_init - allocates global response datastore
@@ -132,11 +127,20 @@ int response_init_cpu(void)
                           percpu_get(cpu_id));
 }
 
+void yield_handler(void)
+{
+    if (unlikely(cont == NULL))
+    {
+        return;
+    }
+    swapcontext_fast_to_control(cont, &uctx_main);
+}
+
 static void test_handler(struct dune_tf *tf)
 {
     asm volatile("cli" ::
                      :);
-    
+
     dune_apic_eoi();
 
     swapcontext_fast_to_control(cont, &uctx_main);
@@ -183,8 +187,7 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
 
     asm volatile("cli" ::
                      :);
-    
-    
+
     struct response *resp = mempool_alloc(&percpu_get(response_pool));
     if (!resp)
     {
@@ -246,7 +249,9 @@ static inline void init_worker(void)
 {
     cpu_nr_ = percpu_get(cpu_nr) - 2;
     worker_responses[cpu_nr_].flag = PROCESSED;
+    
     dune_register_intr_handler(PREEMPT_VECTOR, test_handler);
+    
     eth_process_reclaim();
     asm volatile("cli" ::
                      :);
@@ -288,67 +293,62 @@ static inline void handle_new_packet(void)
     }
 }
 
-static void simple_generic_work(long ms, int id)
+static void simple_generic_work(long us, int id)
 {
     asm volatile("sti" :::);
 
     uint64_t i = 0;
 
-    printf("Generate work for: %d \n", id);
-    long start = get_ms();
+    // convert into nano second 10^-9
+    // multiply with 3.3 GHZ 
+    uint64_t us_left = us * 1000 * 3.3;
 
-    while (ms < get_ms() - start)
-    {        
-        i++;
+    do
+    {
         asm volatile("nop");
-        // asm volatile("cli":::);
-        // printf("%d", id);
-        // usleep(50);
-    } 
+        i += 1;
+        
+        if ((i % 5000) == 0){
+            asm volatile ("nop");
+            swapcontext_fast_to_control(cont, &uctx_main);
+        }
+    } while (i < us_left);
+
     
     asm volatile("cli" :::);
-    printf("Work ended for %d\n", id);       
 
-    // resp->genNs = req->genNs;
-    // resp->runNs = req->runNs;
-    struct myresponse *resp = mempool_alloc(&percpu_get(response_pool));
-    resp->id = id;
-    strcpy(resp->msg, "finished");
-
-    fake_network_send((void *)resp, sizeof(struct myresponse));
+    // fake_network_send((void *)resp, sizeof(struct myresponse));
+    TOTAL_PACKETS += 1;
 
     finished = true;
-    
     swapcontext_very_fast(cont, &uctx_main);
 }
-
 
 static inline void handle_fake_new_packet(void)
 {
     int ret;
     struct mbuf *pkt;
-    struct db_req *req;
+    struct custom_payload *req;
 
     pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
-    req = mbuf_mtod(pkt, struct db_req *);
-   
-    long k = getCurNs();
-    log_info("New packet arrived \n");
+    req = mbuf_mtod(pkt, struct custom_payload *);
+
+    // log_info("New packet arrived \n");
 
     // assert((req->type) == GET);
 
-    if(req == NULL || (req->type) != CUSTOM){
+    if (req == NULL)
+    {
         log_info("OOPS No Data\n");
         finished = true;
         return;
     }
-    
-    struct custom_payload * payload = (struct custom_payload *)(req->params);
-    
+
     cont = (struct mbuf *)dispatcher_requests[cpu_nr_].rnbl;
     getcontext_fast(cont);
     set_context_link(cont, &uctx_main);
-    makecontext(cont, (void (*)(void))simple_generic_work, 2, payload->ms, payload->id);
+    makecontext(cont, (void (*)(void))simple_generic_work, 2, req->ms, req->id);
+
     finished = false;
     ret = swapcontext_very_fast(&uctx_main, cont);
     if (ret)
@@ -396,14 +396,12 @@ static inline void handle_fake_request(void)
 
 static inline void finish_request(void)
 {
-    worker_responses[cpu_nr_].timestamp =
-        dispatcher_requests[cpu_nr_].timestamp;
-    worker_responses[cpu_nr_].type =
-        dispatcher_requests[cpu_nr_].type;
-    worker_responses[cpu_nr_].mbuf =
-        dispatcher_requests[cpu_nr_].mbuf;
+    worker_responses[cpu_nr_].timestamp = dispatcher_requests[cpu_nr_].timestamp;
+    worker_responses[cpu_nr_].type = dispatcher_requests[cpu_nr_].type;
+    worker_responses[cpu_nr_].mbuf = dispatcher_requests[cpu_nr_].mbuf;
     worker_responses[cpu_nr_].rnbl = cont;
     worker_responses[cpu_nr_].category = CONTEXT;
+
     if (finished)
     {
         worker_responses[cpu_nr_].flag = FINISHED;
@@ -427,17 +425,14 @@ void do_work(void)
 #ifdef FAKE_WORK
         handle_fake_request();
         fake_eth_process_send();
-#else 
+#else
         eth_process_reclaim();
         eth_process_send();
         handle_request();
 #endif
         finish_request();
-
     }
 }
-
-
 
 // static void fake_generic_work(db_req *db_pkg)
 // {
@@ -477,7 +472,7 @@ void do_work(void)
 //     }
 
 //     asm volatile("cli" :::);
-//     // printf("Work ended for %d\n", id);       
+//     // printf("Work ended for %d\n", id);
 
 //     // resp->genNs = req->genNs;
 //     // resp->runNs = req->runNs;
@@ -488,7 +483,6 @@ void do_work(void)
 //     fake_network_send((void *)resp, sizeof(struct myresponse));
 
 //     finished = true;
-
 
 //     finished = true;
 //     swapcontext_very_fast(cont, &uctx_main);

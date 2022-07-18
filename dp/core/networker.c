@@ -44,6 +44,11 @@
 
 #include <ix/leveldb.h>
 #include <time.h>
+#include "helpers.h"
+
+uint64_t TEST_START_TIME = 0;
+uint64_t TOTAL_PACKETS = 0; 
+bool TEST_STARTED = false;
 
 /**
  * do_networking - implements networking core's functionality
@@ -82,82 +87,64 @@ void do_networking(void)
 volatile struct mbuf fake_pkts[MAX_LIVE_REQS];
 int live_reqs[MAX_LIVE_REQS] = {0};
 int cursor = 0;
+struct mempool_datastore custom_payload_datastore;
 
-volatile struct mbuf *gen_fake_reqs(void)
+int create_custom_payload_datastore()
 {
-	struct mbuf *ret = NULL;
-
-	for (int x = 0; x < MAX_LIVE_REQS; cursor = (cursor + 1) & (MAX_LIVE_REQS - 1), x++)
-	{
-		printf("cursor %d \n", cursor);
-		if (live_reqs[cursor])
-		{
-			continue;
-		}
-		live_reqs[cursor] = 1;
-		ret = &(fake_pkts[cursor]);
-
-		printf("ret %d\n", *ret);
-		break;
-	}
-
-	printf("Sent fake req\n");
-	return ret;
+    return mempool_create_datastore(&custom_payload_datastore, 128000,
+                                    sizeof(struct custom_payload), 1,
+                                    MEMPOOL_DEFAULT_CHUNKSIZE,
+                                    "custom_payload");
 }
 
 void do_work_gen(void)
 {
-	int ikl;
-	printf("Generating fake works\n");
+	int t;
+	log_info("Creating mempool for custom payloads\n");
+	create_custom_payload_datastore();
+	
+	log_info("Generating fake works\n");
 	srand(time(NULL));
+	long work_counter = 0;
 
-	
-	while (networker_pointers.cnt != 0)
-		;
-	for (ikl = 0; ikl < networker_pointers.free_cnt; ikl++)
+	TEST_START_TIME = get_us();
+	TEST_STARTED = true;
+	log_info("Test started %u, %d\n", TEST_START_TIME, TEST_STARTED);
+
+	while (1)
 	{
-		live_reqs[ikl] = 0;
-	}
-	networker_pointers.free_cnt = 0;
-	for (ikl = 0; ikl < 7; ikl++)
-	{
-		// struct mbuf *temp = gen_fake_reqs();
-		struct mbuf * temp;
-		temp = mbuf_alloc_local();
+		while (networker_pointers.cnt != 0);
 
-		// db_key *key = malloc(sizeof(db_key));
-		// (*key) = "my_key";
-
-		asm volatile("cli":::);
-
-		struct custom_payload * payload = malloc(sizeof(custom_payload));
-
-		asm volatile("sti":::);
-
-		payload->id = ikl+1;
-
-		payload->ms = (rand() % 2) ? 1 : 100;
-
-		struct db_req *req;
-
-		req = mbuf_mtod(temp, struct db_req *);
-
-		req->type = CUSTOM;
-		req->params = payload;
-
-		log_info("work generated with id %d, ms: %d\n", payload->id, payload->ms);
-		usleep(100);
-
-		// req->type = GET;
-		// req->params = key;
-
-		if (!temp)
+		for (t = 0; t < networker_pointers.free_cnt; t++)
 		{
-			break; // no more packets to receive
+			live_reqs[t] = 0;
 		}
-		networker_pointers.pkts[ikl] = temp;
-		networker_pointers.types[ikl] = 0; // For now, only 1 port/type
+		networker_pointers.free_cnt = 0;
+		for (t = 0; t < ETH_RX_MAX_BATCH; t++)
+		{
+			// struct mbuf *temp = gen_fake_reqs();
+			struct mbuf *temp;
+			temp = mbuf_alloc_local();
+
+			// db_key *key = malloc(sizeof(db_key));
+			// (*key) = "my_key";
+
+			struct custom_payload *
+				req = mbuf_mtod(temp, struct custom_payload *);
+
+			req->id = t + 1;
+			req->ms = (rand() % 2) ? 1 : 100;
+
+			// log_info("work generated %d\n", work_counter++);
+			usleep(10);
+
+			if (!temp)
+			{
+				break; // no more packets to receive
+			}
+			networker_pointers.pkts[t] = temp;
+			networker_pointers.types[t] = 0; // For now, only 1 port/type
+		}
+		networker_pointers.cnt = t;
 	}
-	networker_pointers.cnt = ikl;
-	
 }

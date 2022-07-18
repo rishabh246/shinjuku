@@ -3,19 +3,11 @@
 #include <inttypes.h>
 #include <math.h>
 #include <time.h>
+#include <sys/time.h>
+#include <stdint.h>
 
-static inline long get_ms(void)
-{
-    long            ms; // Milliseconds
-    time_t          s;  // Seconds
-    struct timespec spec;
-
-    clock_gettime(CLOCK_REALTIME, &spec);
-    ms = round(spec.tv_nsec / 1.0e6);
-
-    if (ms > 999) {
-        ms = 0;
-    }
-
-    return ms;
+static inline uint64_t get_us(){
+	struct timeval currentTime;
+	gettimeofday(&currentTime, NULL);
+	return currentTime.tv_sec * (int)1e6 + currentTime.tv_usec;
 }
