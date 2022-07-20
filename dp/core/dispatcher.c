@@ -138,7 +138,7 @@ static inline void handle_worker(int i, uint64_t cur_time)
 	} 
 	else
 	{
-		// preempt_worker(i, cur_time);
+		preempt_worker(i, cur_time);
 	}
 }
 
@@ -152,6 +152,11 @@ static inline void handle_networker(uint64_t cur_time)
 	{
 		for (i = 0; i < networker_pointers.cnt; i++)
 		{
+			if(unlikely(networker_pointers.pkts[i] == NULL))
+			{
+				continue;
+			}
+
 			ret = context_alloc(&cont);
 			if (unlikely(ret))
 			{

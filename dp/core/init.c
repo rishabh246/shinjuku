@@ -447,28 +447,28 @@ int main(int argc, char *argv[])
   
 	log_info("init done\n");
 
-	leveldb_options_t *options = leveldb_options_create();
-	// create the DB if it's not already present
-	leveldb_options_set_create_if_missing(options, 1);
+	// leveldb_options_t *options = leveldb_options_create();
+	// // create the DB if it's not already present
+	// leveldb_options_set_create_if_missing(options, 1);
 	
-	char *err = NULL;
-    db = leveldb_open(options, "/tmp/leveldb", &err);
+	// char *err = NULL;
+    // db = leveldb_open(options, "/tmp/leveldb", &err);
 
-	assert(!err);
+	// assert(!err);
 
-	char * db_err;
-	int len;
+	// char * db_err;
+	// int len;
 
-	leveldb_put(db, woptions, 
-		"mykey", 5, 
-		"myval", 5,
-		&db_err);
+	// leveldb_put(db, woptions, 
+	// 	"mykey", 5, 
+	// 	"myval", 5,
+	// 	&db_err);
 
-	char * retdb = leveldb_get(db, roptions, 
-		"mykey", 5, &len, &db_err);
+	// char * retdb = leveldb_get(db, roptions, 
+	// 	"mykey", 5, &len, &db_err);
 
-	assert(strcmp(retdb,"myval"));
-	flag = 1;
+	// assert(strcmp(retdb,"myval"));
+	// flag = 1;
 
 
 

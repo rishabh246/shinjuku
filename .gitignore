@@ -1,6 +1,7 @@
 *~
 *.a
 *.d
+*.bin
 *.o
 *.swp
 .depend
