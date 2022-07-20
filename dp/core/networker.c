@@ -122,7 +122,7 @@ void do_work_gen(void)
 
 		networker_pointers.free_cnt = 0;
 
-		for (t = 0; t < ETH_RX_MAX_BATCH / 2; t++)
+		for (t = 0; t < ETH_RX_MAX_BATCH; t++)
 		{
 			// struct mbuf *temp = gen_fake_reqs();
 			struct mbuf* temp = mbuf_alloc_local();
@@ -131,10 +131,11 @@ void do_work_gen(void)
 				req = mbuf_mtod(temp, struct custom_payload *);
 
 			req->id = t + 1;
-			req->ms = (rand() % 2) ? 1 : 100;
+			req->ns = (rand() % 2) ? 1 * 1000 : 100 * 1000;
+			req->timestamp = get_us();
 
-			// usleep(10);
-
+			usleep(10);
+			
 			// -------- Send --------
 			networker_pointers.pkts[t] = temp;
 			networker_pointers.types[t] = 0; // For now, only 1 port/type

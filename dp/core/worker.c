@@ -293,7 +293,7 @@ static inline void handle_new_packet(void)
     }
 }
 
-static void simple_generic_work(long us, int id)
+static void simple_generic_work(long ns, int id)
 {
     asm volatile("sti" :::);
 
@@ -301,7 +301,7 @@ static void simple_generic_work(long us, int id)
 
     // convert into nano second 10^-9
     // multiply with 3.3 GHZ 
-    uint64_t us_left = us * 1000 * 3.3;
+    uint64_t ns_left = ns * 3.3;
 
     do
     {
@@ -310,9 +310,9 @@ static void simple_generic_work(long us, int id)
         
         if ((i % 5000) == 0){
             asm volatile ("nop");
-            // swapcontext_fast_to_control(cont, &uctx_main);
+            swapcontext_fast_to_control(cont, &uctx_main);
         }
-    } while (i < us_left);
+    } while (i < ns_left);
 
     
     asm volatile("cli" :::);
@@ -347,7 +347,7 @@ static inline void handle_fake_new_packet(void)
     cont = (struct mbuf *)dispatcher_requests[cpu_nr_].rnbl;
     getcontext_fast(cont);
     set_context_link(cont, &uctx_main);
-    makecontext(cont, (void (*)(void))simple_generic_work, 2, req->ms, req->id);
+    makecontext(cont, (void (*)(void))simple_generic_work, 2, req->ns, req->id);
 
     finished = false;
     ret = swapcontext_very_fast(&uctx_main, cont);

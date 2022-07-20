@@ -45,7 +45,8 @@ typedef struct kv_parameter
 typedef struct custom_payload
 {
     int id;
-    int ms;
+    int ns;
+    long timestamp;
 } custom_payload;
 
 
