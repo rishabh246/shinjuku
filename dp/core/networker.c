@@ -117,14 +117,15 @@ void do_work_gen(void)
 
 		for (t = 0; t < networker_pointers.free_cnt; t++)
 		{
-			live_reqs[t] = 0;
+			mbuf_free(networker_pointers.pkts[t]);
 		}
+
 		networker_pointers.free_cnt = 0;
+		
 		for (t = 0; t < ETH_RX_MAX_BATCH; t++)
 		{
 			// struct mbuf *temp = gen_fake_reqs();
-			struct mbuf *temp;
-			temp = mbuf_alloc_local();
+			struct mbuf* temp = mbuf_alloc_local();
 
 			// db_key *key = malloc(sizeof(db_key));
 			// (*key) = "my_key";
@@ -136,7 +137,6 @@ void do_work_gen(void)
 			req->ms = (rand() % 2) ? 1 : 100;
 
 			// log_info("work generated %d\n", work_counter++);
-			usleep(10);
 
 			if (!temp)
 			{
@@ -145,6 +145,7 @@ void do_work_gen(void)
 			networker_pointers.pkts[t] = temp;
 			networker_pointers.types[t] = 0; // For now, only 1 port/type
 		}
-		networker_pointers.cnt = t;
+		
+		networker_pointers.cnt = ETH_RX_MAX_BATCH;
 	}
 }
