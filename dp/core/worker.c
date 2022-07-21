@@ -310,7 +310,7 @@ static void simple_generic_work(long ns, int id)
         
         if ((i % 5000) == 0){
             asm volatile ("nop");
-            swapcontext_fast_to_control(cont, &uctx_main);
+            // swapcontext_fast_to_control(cont, &uctx_main);
         }
     } while (i < ns_left);
 

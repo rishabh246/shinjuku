@@ -110,8 +110,9 @@ void do_work_gen(void)
 	TEST_START_TIME = get_us();
 	TEST_STARTED = true;
 	log_info("Test started %u, %d\n", TEST_START_TIME, TEST_STARTED);
+	uint64_t packet_counter = 0;
 
-	while (1)
+	while (packet_counter < 600000)
 	{
 		while (networker_pointers.cnt != 0);
 
@@ -133,12 +134,12 @@ void do_work_gen(void)
 			req->id = t + 1;
 			req->ns = (rand() % 2) ? 1 * 1000 : 100 * 1000;
 			req->timestamp = get_us();
-
-			usleep(10);
 			
 			// -------- Send --------
 			networker_pointers.pkts[t] = temp;
 			networker_pointers.types[t] = 0; // For now, only 1 port/type
+
+			packet_counter += 1;
 		}
 		
 		networker_pointers.cnt = ETH_RX_MAX_BATCH;

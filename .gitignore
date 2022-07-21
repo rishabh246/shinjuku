@@ -4,6 +4,8 @@
 *.bin
 *.o
 *.swp
+*.la
+*.so*
 .depend
 
 /deps/dpdk
