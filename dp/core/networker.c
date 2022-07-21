@@ -48,6 +48,8 @@
 
 uint64_t TEST_START_TIME = 0;
 uint64_t TOTAL_PACKETS = 0; 
+uint64_t NO_BIG_PACKETS = 0;
+uint64_t NO_SMALL_PACKETS = 0;
 bool TEST_STARTED = false;
 
 /**
@@ -133,6 +135,8 @@ void do_work_gen(void)
 
 			req->id = t + 1;
 			req->ns = (rand() % 2) ? 1 * 1000 : 100 * 1000;
+			// req->ns = (rand() % 1000) < 995 ? 0.5 * 1000 : 500 * 1000;
+			
 			req->timestamp = get_us();
 			
 			// -------- Send --------

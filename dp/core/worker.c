@@ -60,6 +60,11 @@
 
 #include "helpers.h"
 
+// ---- Added for tests ----
+extern uint64_t TOTAL_PACKETS;
+extern uint64_t NO_SMALL_PACKETS;
+extern uint64_t NO_BIG_PACKETS;
+
 extern uint64_t TOTAL_PACKETS;
 
 #define PREEMPT_VECTOR 0xf2
@@ -298,7 +303,7 @@ static void simple_generic_work(long ns, int id)
     asm volatile("sti" :::);
 
     uint64_t i = 0;
-
+    uint64_t real_ns = ns;
     // convert into nano second 10^-9
     // multiply with 3.3 GHZ 
     uint64_t ns_left = ns * 3.3;
@@ -319,6 +324,16 @@ static void simple_generic_work(long ns, int id)
 
     // fake_network_send((void *)resp, sizeof(struct myresponse));
     TOTAL_PACKETS += 1;
+
+    if (real_ns == 1 * 1000)
+    {
+        NO_SMALL_PACKETS += 1;
+    }
+    else
+    {
+        NO_BIG_PACKETS += 1;
+    }
+
 
     finished = true;
     swapcontext_very_fast(cont, &uctx_main);

@@ -38,6 +38,9 @@
 
 #include "helpers.h"
 
+// ---- Added for tests ----
+extern uint64_t NO_SMALL_PACKETS;
+extern uint64_t NO_BIG_PACKETS;
 
 extern uint64_t TEST_START_TIME;
 extern uint64_t TOTAL_PACKETS; 
@@ -199,6 +202,7 @@ void do_dispatching(int num_cpus)
 		if (flag && TEST_STARTED && ((get_us() - TEST_START_TIME) > 5000000) )
 		{
 			printf("TEST FINISHED - total number of packets %d \n", TOTAL_PACKETS);
+			printf("%d big, %d small packets\n", NO_BIG_PACKETS, NO_SMALL_PACKETS);
 			flag = false;
 		}
 
