@@ -37,20 +37,26 @@
 #include <net/udp.h>
 
 #include "helpers.h"
+#include "benchmark.h"
 
 // ---- Added for tests ----
-extern uint64_t NO_SMALL_PACKETS;
-extern uint64_t NO_BIG_PACKETS;
-
-extern uint64_t TEST_START_TIME;
-extern uint64_t TOTAL_PACKETS; 
+extern uint64_t total_scheduled;
 extern bool TEST_STARTED;
+extern bool IS_FIRST_PACKET;
+
+uint64_t TEST_START_TIME;
+uint64_t TEST_END_TIME;
+uint64_t TEST_RCVD_SMALL_PACKETS;
+uint64_t TEST_RCVD_BIG_PACKETS;
+uint64_t TEST_TOTAL_PACKETS_COUNTER; 
+bool 	 TEST_FINISHED = false;
+
 
 extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 extern void yield_handler(void);
 
 #define PREEMPT_VECTOR 0xf2
-#define PREEMPTION_DELAY 5000
+#define PREEMPTION_DELAY 6000
 
 static void timestamp_init(int num_workers)
 {
@@ -81,7 +87,7 @@ static inline void handle_preempted(int i)
 {
 	void *rnbl, *mbuf;
 	uint8_t type, category;
-	uint64_t timestamp;
+	uint64_t timestamp, runned_for;
 
 	rnbl = worker_responses[i].rnbl;
 	mbuf = worker_responses[i].mbuf;
@@ -120,7 +126,6 @@ static inline void preempt_worker(int i, uint64_t cur_time)
 	{
 		// Avoid preempting more times.
 		preempt_check[i] = false;
-		// printf("Trying to preempt\n");
 		dune_apic_send_posted_ipi(PREEMPT_VECTOR, CFG.cpu[i + 2]);
 	}
 }
@@ -141,7 +146,9 @@ static inline void handle_worker(int i, uint64_t cur_time)
 	} 
 	else
 	{
+		#if SCHEDULE_METHOD == METHOD_PI
 		preempt_worker(i, cur_time);
+		#endif
 	}
 }
 
@@ -199,10 +206,13 @@ void do_dispatching(int num_cpus)
 
 	while (1)
 	{
-		if (flag && TEST_STARTED && ((get_us() - TEST_START_TIME) > 5000000) )
+		if (flag && TEST_STARTED && IS_FIRST_PACKET && (TEST_FINISHED || ((get_us() - TEST_START_TIME) > 10000000 * 20 )))
 		{
-			printf("TEST FINISHED - total number of packets %d \n", TOTAL_PACKETS);
-			printf("%d big, %d small packets\n", NO_BIG_PACKETS, NO_SMALL_PACKETS);
+			printf("\n\n ----------- Benchmark FINISHED ----------- \n");
+			printf("Benchmark - Total number of packets %d \n", TEST_TOTAL_PACKETS_COUNTER);
+			printf("Benchmark - %d big, %d small packets\n", TEST_RCVD_BIG_PACKETS, TEST_RCVD_SMALL_PACKETS);
+			printf("Benchmark - Time ellapsed: %llu\n", TEST_END_TIME - TEST_START_TIME);
+			// printf("Benchmark - Total scheduled times: %d\n", total_scheduled);
 			flag = false;
 		}
 

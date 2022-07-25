@@ -59,15 +59,31 @@
 #include <net/ethernet.h>
 
 #include "helpers.h"
+#include "benchmark.h"
+
+bool PREEMPT_NOW = false;
 
 // ---- Added for tests ----
-extern uint64_t TOTAL_PACKETS;
-extern uint64_t NO_SMALL_PACKETS;
-extern uint64_t NO_BIG_PACKETS;
+extern uint64_t     TEST_TOTAL_PACKETS_COUNTER;
+extern uint64_t     TEST_RCVD_SMALL_PACKETS;
+extern uint64_t     TEST_RCVD_BIG_PACKETS;
+extern uint64_t     TEST_START_TIME;
+extern uint64_t     TEST_END_TIME;
+extern bool         TEST_FINISHED;
 
-extern uint64_t TOTAL_PACKETS;
 
 #define PREEMPT_VECTOR 0xf2
+
+// Local Variables
+uint64_t JOB_STARTED_AT = 0;
+uint64_t total_scheduled = 0;
+
+// For debugging purposes
+// uint64_t posted_interrupts[1024 * 1024] = {0};
+// uint64_t interrupt_iterator = 0;
+
+// uint64_t yeilds [1024 * 1024] = {0};
+// uint64_t yield_iterator = 0;
 
 __thread ucontext_t uctx_main;
 __thread ucontext_t *cont;
@@ -132,22 +148,13 @@ int response_init_cpu(void)
                           percpu_get(cpu_id));
 }
 
-void yield_handler(void)
-{
-    if (unlikely(cont == NULL))
-    {
-        return;
-    }
-    swapcontext_fast_to_control(cont, &uctx_main);
-}
-
 static void test_handler(struct dune_tf *tf)
 {
     asm volatile("cli" ::
                      :);
 
     dune_apic_eoi();
-
+    total_scheduled += 1;
     swapcontext_fast_to_control(cont, &uctx_main);
 }
 
@@ -254,9 +261,9 @@ static inline void init_worker(void)
 {
     cpu_nr_ = percpu_get(cpu_nr) - 2;
     worker_responses[cpu_nr_].flag = PROCESSED;
-    
+
     dune_register_intr_handler(PREEMPT_VECTOR, test_handler);
-    
+
     eth_process_reclaim();
     asm volatile("cli" ::
                      :);
@@ -300,40 +307,39 @@ static inline void handle_new_packet(void)
 
 static void simple_generic_work(long ns, int id)
 {
+    uint64_t i = 0, to_run = 0;
+    float us = (float) ns / 12;
+    
+    to_run = us / 3.3;
+
     asm volatile("sti" :::);
-
-    uint64_t i = 0;
-    uint64_t real_ns = ns;
-    // convert into nano second 10^-9
-    // multiply with 3.3 GHZ 
-    uint64_t ns_left = ns * 3.3;
-
     do
     {
-        asm volatile("nop");
-        i += 1;
-        
-        if ((i % 5000) == 0){
+        asm volatile ("nop");
+        i ++;
+        if(unlikely(get_ns() - JOB_STARTED_AT > 4900))
+        {
             asm volatile ("nop");
-            // swapcontext_fast_to_control(cont, &uctx_main);
-        }
-    } while (i < ns_left);
 
-    
+            #if SCHEDULE_METHOD == METHOD_YIELD
+            swapcontext_fast_to_control(cont, &uctx_main);
+            #endif
+        }
+    } while (to_run > i);
     asm volatile("cli" :::);
 
-    // fake_network_send((void *)resp, sizeof(struct myresponse));
-    TOTAL_PACKETS += 1;
+    TEST_TOTAL_PACKETS_COUNTER += 1;
 
-    if (real_ns == 1 * 1000)
+    if (TEST_TOTAL_PACKETS_COUNTER == BENCHMARK_STOP_AT_PACKET)
     {
-        NO_SMALL_PACKETS += 1;
-    }
-    else
-    {
-        NO_BIG_PACKETS += 1;
+        TEST_END_TIME = get_us();
+        TEST_FINISHED = true;
     }
 
+    if (ns == BENCHMARK_SMALL_PKT_NS) 
+        TEST_RCVD_SMALL_PACKETS += 1;
+    else 
+        TEST_RCVD_BIG_PACKETS += 1;
 
     finished = true;
     swapcontext_very_fast(cont, &uctx_main);
@@ -347,10 +353,6 @@ static inline void handle_fake_new_packet(void)
 
     pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
     req = mbuf_mtod(pkt, struct custom_payload *);
-
-    // log_info("New packet arrived \n");
-
-    // assert((req->type) == GET);
 
     if (req == NULL)
     {
@@ -398,13 +400,22 @@ static inline void handle_request(void)
         handle_context();
 }
 
+bool IS_FIRST_PACKET = false;
+
 static inline void handle_fake_request(void)
 {
     while (dispatcher_requests[cpu_nr_].flag == WAITING)
         ;
     dispatcher_requests[cpu_nr_].flag = WAITING;
     if (dispatcher_requests[cpu_nr_].category == PACKET)
+    {
+        if (unlikely(!IS_FIRST_PACKET))
+        {
+            TEST_START_TIME = get_us();
+            IS_FIRST_PACKET = true;
+        }
         handle_fake_new_packet();
+    }
     else
         handle_context();
 }
@@ -435,12 +446,20 @@ void do_work(void)
     init_db();
     log_info("initialize leveldb\n");
 
+
+    // sure about vdso
+    for (size_t i = 0; i < 50; i++)
+        get_ns();
+
     while (true)
     {
+        JOB_STARTED_AT = get_ns();
+
 #ifdef FAKE_WORK
         handle_fake_request();
         fake_eth_process_send();
 #else
+
         eth_process_reclaim();
         eth_process_send();
         handle_request();
@@ -448,57 +467,3 @@ void do_work(void)
         finish_request();
     }
 }
-
-// static void fake_generic_work(db_req *db_pkg)
-// {
-//     asm volatile("sti" :::);
-
-//     char *db_err = NULL;
-
-//     switch (db_pkg->type)
-//     {
-//     case (PUT):
-//     {
-//         leveldb_put(db, woptions,
-//                     ((struct kv_parameter *)(db_pkg->params))->key, KEYSIZE,
-//                     ((struct kv_parameter *)(db_pkg->params))->value, VALSIZE,
-//                     &db_err);
-//         break;
-//     }
-
-//     case (GET):
-//     {
-//         char *read = leveldb_get(db, roptions,
-//                                  (db_key * )(db_pkg->params), KEYSIZE,
-//                                  &read_len, &db_err);
-
-//         break;
-//     }
-//     case (DELETE):
-//     {
-//         leveldb_delete(db, woptions,
-//                        (db_key *)(db_pkg->params), KEYSIZE,
-//                        &db_err);
-
-//         break;
-//     }
-//     default:
-//         break;
-//     }
-
-//     asm volatile("cli" :::);
-//     // printf("Work ended for %d\n", id);
-
-//     // resp->genNs = req->genNs;
-//     // resp->runNs = req->runNs;
-//     struct myresponse *resp = mempool_alloc(&percpu_get(response_pool));
-//     resp->id = 1;
-//     strcpy(resp->msg, "finished");
-
-//     fake_network_send((void *)resp, sizeof(struct myresponse));
-
-//     finished = true;
-
-//     finished = true;
-//     swapcontext_very_fast(cont, &uctx_main);
-// }

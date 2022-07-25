@@ -94,7 +94,7 @@ extern int response_init_cpu(void);
 extern int context_init(void);
 extern void do_work(void);
 extern void do_networking(void);
-extern void do_work_gen(void);
+extern void do_fake_networking(void);
 extern void do_dispatching(int num_cpus);
 
 extern struct mempool context_pool;
@@ -349,7 +349,7 @@ void *start_cpu(void *arg)
 		do_networking();
 #else
 		// generate_fake_requests_throughput();
-		do_work_gen();
+		do_fake_networking();
 #endif
 
 	} else {

@@ -45,11 +45,8 @@
 #include <ix/leveldb.h>
 #include <time.h>
 #include "helpers.h"
+#include "benchmark.h"
 
-uint64_t TEST_START_TIME = 0;
-uint64_t TOTAL_PACKETS = 0; 
-uint64_t NO_BIG_PACKETS = 0;
-uint64_t NO_SMALL_PACKETS = 0;
 bool TEST_STARTED = false;
 
 /**
@@ -81,40 +78,20 @@ void do_networking(void)
 	}
 }
 
-/* Support for fake networking */
-
-#define MAX_LIVE_REQS 128
-
-// Basic mempool. TODO: Optimize
-volatile struct mbuf fake_pkts[MAX_LIVE_REQS];
-int live_reqs[MAX_LIVE_REQS] = {0};
-int cursor = 0;
-struct mempool_datastore custom_payload_datastore;
-
-int create_custom_payload_datastore()
+/**
+ * do_fake_networking - implements fake network logic with a given benchmark
+ */
+void do_fake_networking(void)
 {
-    return mempool_create_datastore(&custom_payload_datastore, 128000,
-                                    sizeof(struct custom_payload), 1,
-                                    MEMPOOL_DEFAULT_CHUNKSIZE,
-                                    "custom_payload");
-}
-
-void do_work_gen(void)
-{
-	int t;
-	log_info("Creating mempool for custom payloads\n");
-	create_custom_payload_datastore();
-	
-	log_info("Generating fake works\n");
+	uint64_t packet_counter = 0, work_counter = 0, t = 0;
 	srand(time(NULL));
-	long work_counter = 0;
 
-	TEST_START_TIME = get_us();
 	TEST_STARTED = true;
-	log_info("Test started %u, %d\n", TEST_START_TIME, TEST_STARTED);
-	uint64_t packet_counter = 0;
+	log_info("Generating fake works\n");
+	log_info("Test started\n");
 
-	while (packet_counter < 600000)
+
+	while (packet_counter < BENCHMARK_NO_PACKETS + 2)
 	{
 		while (networker_pointers.cnt != 0);
 
@@ -127,21 +104,26 @@ void do_work_gen(void)
 
 		for (t = 0; t < ETH_RX_MAX_BATCH; t++)
 		{
-			// struct mbuf *temp = gen_fake_reqs();
 			struct mbuf* temp = mbuf_alloc_local();
 
 			struct custom_payload *
 				req = mbuf_mtod(temp, struct custom_payload *);
 
 			req->id = t + 1;
+
+			#if BENCHMARK_TYPE == 1
 			req->ns = (rand() % 2) ? 1 * 1000 : 100 * 1000;
-			// req->ns = (rand() % 1000) < 995 ? 0.5 * 1000 : 500 * 1000;
-			
+			#elif BENCHMARK_TYPE == 2
+			req->ns = (rand() % 1000) < 995 ? 0.5 * 1000 : 500 * 1000;
+			#else
+			// No Benchmark Provided
+			#endif
+
 			req->timestamp = get_us();
 			
 			// -------- Send --------
 			networker_pointers.pkts[t] = temp;
-			networker_pointers.types[t] = 0; // For now, only 1 port/type
+			networker_pointers.types[t] = 0; 	// For now, only 1 port/type
 
 			packet_counter += 1;
 		}
