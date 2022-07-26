@@ -74,6 +74,10 @@ extern bool         TEST_FINISHED;
 // Added for leveldb support
 extern leveldb_t * db;
 extern leveldb_iterator_t *iter;
+extern leveldb_options_t 		*options;
+extern leveldb_readoptions_t 	*roptions;
+extern leveldb_writeoptions_t 	*woptions;
+ 
 
 
 #define PREEMPT_VECTOR 0xf2
@@ -356,16 +360,15 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     asm volatile("sti" :::);
     
     char *db_err = NULL;
+    int read_len = 0;
 
     switch (db_pkg->type)
     {
     case (DB_PUT):
     {
-        printf("[Req] Put operation for key: %s \n",  db_pkg->key);
-
         // leveldb_put(db, woptions,
         //             db_pkg->key, KEYSIZE,
-        //             db_pkg->value, VALSIZE,
+        //             db_pkg->val, VALSIZE,
         //             &db_err);
 
         break;
@@ -401,7 +404,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
         break;
     }
 
-    printf("Type of request %d, handle time (ns): %d\n", db_pkg->type, get_ns()-start_time);
+    // printf("Type of request %d, handle time (ns): %d\n", db_pkg->type, get_ns()-start_time);
     asm volatile("cli" :::);
     finished = true;
     swapcontext_very_fast(cont, &uctx_main);
