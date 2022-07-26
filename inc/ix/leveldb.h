@@ -14,25 +14,25 @@ leveldb_readoptions_t *roptions;
 leveldb_writeoptions_t *woptions;
 size_t read_len;
 
-typedef char db_key     [1024];
-typedef char db_value   [1024];
+typedef char db_key     [32];
+typedef char db_value   [32];
 
 // Type of Level-db operations
 typedef enum
 {
-    PUT,
-    GET,
-    DELETE,
-    ITERATOR,
-    CUSTOM,         // This type added for tests, see below.
-    
-} REQ_TYPE;
+    DB_PUT,
+    DB_GET,
+    DB_DELETE,
+    DB_ITERATOR,
+    DB_CUSTOM,         // This type added for tests, see below.
+} DB_REQ_TYPE;
 
 typedef struct db_req
 {
-    REQ_TYPE    type;
-    void *      params;
-
+    DB_REQ_TYPE type;
+    db_key      key;
+    db_value    val;
+    uint64_t    ts;
 } db_req;
 
 typedef struct kv_parameter
@@ -55,11 +55,6 @@ static void init_db()
     log_info("Generating leveldb options \n");
     roptions = leveldb_readoptions_create();
     woptions = leveldb_writeoptions_create();
-}
-
-inline struct db_req * gen_db_pkg(REQ_TYPE req, void *parameters)
-{
-    return (struct db_req *)(req, parameters);
 }
 
 // static void process_db_pkg(db_req *db_pkg)

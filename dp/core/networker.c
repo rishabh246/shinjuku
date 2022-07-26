@@ -107,6 +107,7 @@ void do_fake_networking(void)
 		{
 			struct mbuf* temp = mbuf_alloc_local();
 
+			// generate_db_req()
 			generate_benchmark_request(temp, packet_counter);
 			
 			// -------- Send --------
@@ -118,6 +119,32 @@ void do_fake_networking(void)
 		
 		networker_pointers.cnt = ETH_RX_MAX_BATCH;
 	}
+}
+
+
+struct db_req* generate_db_req(DB_REQ_TYPE type, struct mbuf * temp)
+{
+	struct db_req* req = mbuf_mtod(temp, struct db_req *);
+
+	if (type == DB_GET)
+	{
+		req->type = DB_GET;
+		strcpy(req->key, "musakey");
+		strcpy(req->val, "musavalue");
+	} 
+	else if(type == DB_ITERATOR)
+	{
+		req->type = DB_ITERATOR;
+	}
+	else
+	{
+		req->type = DB_GET;
+		strcpy(req->key, "musakey");
+		strcpy(req->val, "musavalue");
+	}
+
+	req->ts = get_ns();
+	return req;
 }
 
 struct custom_payload* generate_benchmark_request(struct mbuf* temp, uint64_t t) 
