@@ -49,6 +49,7 @@
 
 bool TEST_STARTED = false;
 
+struct custom_payload* generate_benchmark_request(struct mbuf* temp, uint64_t t);
 /**
  * do_networking - implements networking core's functionality
  */
@@ -106,20 +107,7 @@ void do_fake_networking(void)
 		{
 			struct mbuf* temp = mbuf_alloc_local();
 
-			struct custom_payload *
-				req = mbuf_mtod(temp, struct custom_payload *);
-
-			req->id = t + 1;
-
-			#if BENCHMARK_TYPE == 1
-			req->ns = (rand() % 2) ? 1 * 1000 : 100 * 1000;
-			#elif BENCHMARK_TYPE == 2
-			req->ns = (rand() % 1000) < 995 ? 0.5 * 1000 : 500 * 1000;
-			#else
-			// No Benchmark Provided
-			#endif
-
-			req->timestamp = get_us();
+			generate_benchmark_request(temp, packet_counter);
 			
 			// -------- Send --------
 			networker_pointers.pkts[t] = temp;
@@ -130,4 +118,23 @@ void do_fake_networking(void)
 		
 		networker_pointers.cnt = ETH_RX_MAX_BATCH;
 	}
+}
+
+struct custom_payload* generate_benchmark_request(struct mbuf* temp, uint64_t t) 
+{
+	struct custom_payload *
+	req = mbuf_mtod(temp, struct custom_payload *);
+
+	req->id = t + 1;
+
+	#if BENCHMARK_TYPE == 1
+	req->ns = (rand() % 2) ? 1 * 1000 : 100 * 1000;
+	#elif BENCHMARK_TYPE == 2
+	req->ns = (rand() % 1000) < 995 ? 0.5 * 1000 : 500 * 1000;
+	#else
+	// No Benchmark Provided
+	#endif
+
+	req->timestamp = get_us();
+	return req;
 }
