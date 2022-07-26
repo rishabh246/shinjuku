@@ -50,6 +50,8 @@
 bool TEST_STARTED = false;
 
 struct custom_payload* generate_benchmark_request(struct mbuf* temp, uint64_t t);
+struct db_req* generate_db_req(DB_REQ_TYPE type, struct mbuf * temp);
+
 /**
  * do_networking - implements networking core's functionality
  */
@@ -107,8 +109,8 @@ void do_fake_networking(void)
 		{
 			struct mbuf* temp = mbuf_alloc_local();
 
-			// generate_db_req()
-			generate_benchmark_request(temp, packet_counter);
+			generate_db_req(t%4, temp);
+			// generate_benchmark_request(temp, packet_counter);
 			
 			// -------- Send --------
 			networker_pointers.pkts[t] = temp;

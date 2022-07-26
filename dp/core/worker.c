@@ -345,14 +345,76 @@ static void simple_generic_work(long ns, int id)
     swapcontext_very_fast(cont, &uctx_main);
 }
 
+
+static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
+{
+    // Set interrupt flag
+    asm volatile("sti" :::);
+    
+    char *db_err = NULL;
+
+    switch (db_pkg->type)
+    {
+    case (DB_PUT):
+    {
+        printf("[Req] Put operation for key: %s \n",  db_pkg->key);
+
+        // leveldb_put(db, woptions,
+        //             db_pkg->key, KEYSIZE,
+        //             db_pkg->value, VALSIZE,
+        //             &db_err);
+
+        break;
+    }
+
+    case (DB_GET):
+    {
+        // char *read = leveldb_get(db, roptions,
+        //                          db_pkg->key, KEYSIZE,
+        //                          &read_len, &db_err);
+        break;
+    }
+    case (DB_DELETE):
+    {
+        // leveldb_delete(db, woptions,
+        //                db_pkg->key, KEYSIZE,
+        //                &db_err);
+
+        break;
+    }
+    case (DB_ITERATOR):
+    {
+        // for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter); leveldb_iter_next(iter))
+        // {
+        //     char *retr_key;
+        //     size_t klen;
+        //     retr_key = leveldb_iter_key(iter, &klen);
+        // }
+
+        break;
+    }
+    default:
+        break;
+    }
+
+    printf("Type of request %d, handle time (ns): %d\n", db_pkg->type, get_ns()-start_time);
+    asm volatile("cli" :::);
+    finished = true;
+    swapcontext_very_fast(cont, &uctx_main);
+}
+
 static inline void handle_fake_new_packet(void)
 {
     int ret;
     struct mbuf *pkt;
-    struct custom_payload *req;
+    // struct custom_payload *req;
+    struct db_req* req;
 
     pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
-    req = mbuf_mtod(pkt, struct custom_payload *);
+
+    // req = mbuf_mtod(pkt, struct custom_payload *);
+    req = mbuf_mtod(pkt, struct db_req *);
+    
 
     if (req == NULL)
     {
@@ -364,7 +426,10 @@ static inline void handle_fake_new_packet(void)
     cont = (struct mbuf *)dispatcher_requests[cpu_nr_].rnbl;
     getcontext_fast(cont);
     set_context_link(cont, &uctx_main);
-    makecontext(cont, (void (*)(void))simple_generic_work, 2, req->ns, req->id);
+
+    // makecontext(cont, (void (*)(void))simple_generic_work, 2, req->ns, req->id);
+    makecontext(cont, (void (*)(void))do_db_generic_work, 2, req, get_ns());
+
 
     finished = false;
     ret = swapcontext_very_fast(&uctx_main, cont);
