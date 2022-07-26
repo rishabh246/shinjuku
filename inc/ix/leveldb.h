@@ -3,16 +3,15 @@
 #include <stdint.h>
 #include <ix/log.h>
 #include <leveldb/c.h>
+#include <time.h>
+#include <assert.h>
 
 
-#define KEYSIZE 1024
-#define VALSIZE 1024
+#define KEYSIZE 32
+#define VALSIZE 32
 
-leveldb_t * db;
-leveldb_options_t *options;
-leveldb_readoptions_t *roptions;
-leveldb_writeoptions_t *woptions;
-size_t read_len;
+static unsigned long long *mmap_file;
+static unsigned long long *randomized_keys;
 
 typedef char db_key     [32];
 typedef char db_value   [32];
@@ -50,12 +49,20 @@ typedef struct custom_payload
 } custom_payload;
 
 
-static void init_db()
+static void randomized_keys_init(uint64_t num_keys)
 {
-    log_info("Generating leveldb options \n");
-    roptions = leveldb_readoptions_create();
-    woptions = leveldb_writeoptions_create();
+    randomized_keys = (unsigned long long *)malloc(num_keys * sizeof(unsigned long long));
+    if (randomized_keys == 0)
+    {
+        assert(0 && "malloc failed");
+    }
+    srand(time(NULL));
+    for (int i = 0; i < num_keys; i++)
+    {
+        randomized_keys[i] = rand() % num_keys;
+    }
 }
+
 
 // static void process_db_pkg(db_req *db_pkg)
 // {

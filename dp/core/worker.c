@@ -71,6 +71,10 @@ extern uint64_t     TEST_START_TIME;
 extern uint64_t     TEST_END_TIME;
 extern bool         TEST_FINISHED;
 
+// Added for leveldb support
+extern leveldb_t * db;
+extern leveldb_iterator_t *iter;
+
 
 #define PREEMPT_VECTOR 0xf2
 
@@ -507,10 +511,6 @@ void do_work(void)
 {
     init_worker();
     log_info("do_work: Waiting for dispatcher work\n");
-
-    init_db();
-    log_info("initialize leveldb\n");
-
 
     // sure about vdso
     for (size_t i = 0; i < 50; i++)

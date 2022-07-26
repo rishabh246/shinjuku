@@ -133,6 +133,12 @@ static struct init_vector_t init_tbl[] = {
 	{ NULL, NULL, NULL, NULL}
 };
 
+// Leveldb variables 
+leveldb_t 				*db;
+leveldb_iterator_t 		*iter;
+leveldb_options_t 		*options;
+leveldb_readoptions_t 	*roptions;
+leveldb_writeoptions_t 	*woptions;
 
 static int init_argc;
 static char **init_argv;
@@ -447,33 +453,42 @@ int main(int argc, char *argv[])
   
 	log_info("init done\n");
 
-	// leveldb_options_t *options = leveldb_options_create();
-	// // create the DB if it's not already present
-	// leveldb_options_set_create_if_missing(options, 1);
+	options = leveldb_options_create();
+	roptions = leveldb_readoptions_create();
+	woptions = leveldb_writeoptions_create();
 	
-	// char *err = NULL;
-    // db = leveldb_open(options, "/tmp/leveldb", &err);
+	leveldb_options_set_create_if_missing(options, 1);
+	
+	char *err = NULL;
+    db = leveldb_open(options, "/tmp/leveldb", &err);
 
-	// assert(!err);
+	assert(!err);
 
-	// char * db_err;
-	// int len;
+	char * db_err;
+	int len;
 
-	// leveldb_put(db, woptions, 
-	// 	"mykey", 5, 
-	// 	"myval", 5,
-	// 	&db_err);
+	leveldb_put(db, woptions, "mykey", 5, "myval", 5, &db_err);
 
-	// char * retdb = leveldb_get(db, roptions, 
-	// 	"mykey", 5, &len, &db_err);
+	char * retdb = leveldb_get(db, roptions, 
+		"mykey", 5, &len, &db_err);
 
 	// assert(strcmp(retdb,"myval"));
-	// flag = 1;
 
+	randomized_keys_init(100000);
 
+	for (size_t i = 0; i < 100000; i++)
+	{
+		char keybuf[13], valbuf[13]; 
+		snprintf(keybuf, 10, "key%d", randomized_keys[i]);
+		snprintf(valbuf, 10, "val%d", randomized_keys[i]); 
+		leveldb_put(db, woptions, keybuf, 10, valbuf, 10, &db_err);
+	}
 
-	log_info("init leveldb\n");
+	iter = leveldb_create_iterator(db, roptions);
 
+	flag = 1;
+
+	log_info("Init Leveldb - with prefilled random key-values\n");
 
   do_dispatching(CFG.num_cpus);
 	log_info("finished handling contexts, looping forever...\n");
