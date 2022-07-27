@@ -9,7 +9,7 @@
 // 2 -> None (Cause Hol-block)
 /* ----------------------------- */
 
-#define BENCHMARK_NO_PACKETS           20 
+#define BENCHMARK_NO_PACKETS            3 
 #define BENCHMARK_TYPE       	        1
 #define BENCHMARK_STOP_AT_PACKET    20000
 #define BENCHMARK_STOP_AT_NS        1000000 * 20 

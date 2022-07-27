@@ -472,7 +472,9 @@ int main(int argc, char *argv[])
 	char * retdb = leveldb_get(db, roptions, 
 		"mykey", 5, &len, &db_err);
 
-	// assert(strcmp(retdb,"myval"));
+	log_info("read data db: %s \n", retdb);
+
+	assert(strcmp(retdb,"myval") == 0);
 
 	randomized_keys_init(100000);
 

@@ -110,7 +110,7 @@ void do_fake_networking(void)
 		{
 			struct mbuf* temp = mbuf_alloc_local();
 
-			generate_db_req(t%4, temp);
+			generate_db_req(DB_GET, temp);
 			// generate_benchmark_request(temp, packet_counter);
 			
 			// -------- Send --------
@@ -138,6 +138,10 @@ struct db_req* generate_db_req(DB_REQ_TYPE type, struct mbuf * temp)
 	else if(type == DB_ITERATOR)
 	{
 		req->type = DB_ITERATOR;
+	}
+	else if(type == DB_DELETE)
+	{
+		req->type = DB_DELETE;
 	}
 	else
 	{
