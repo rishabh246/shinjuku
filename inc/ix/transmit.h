@@ -41,6 +41,7 @@
 struct myresponse
 {
     uint64_t id;
+    uint64_t ts;
     char msg [256];
 };
 
@@ -88,7 +89,7 @@ static inline void udp_mbuf_done(struct mbuf * pkt)
 }
 
 
-static inline int fake_network_send(void * data, size_t len)
+static inline int fake_network_send(int id, uint64_t ts, char * str, int str_len)
 {
         int ret = 0;
         struct mbuf *pkt;
@@ -97,8 +98,9 @@ static inline int fake_network_send(void * data, size_t len)
         pkt = mbuf_alloc_local();
 
         _response = mbuf_mtod(pkt, struct myresponse *);
-        _response->id = ((struct myresponse *)data)->id;
-        strcpy(_response->msg, ((struct myresponse *)data)->msg);
+        _response->id = id;
+        _response->ts = ts;
+        strncpy(_response->msg, str, str_len);
        
         ret = eth_send(percpu_get(eth_txqs)[0], pkt);
 

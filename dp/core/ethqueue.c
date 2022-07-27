@@ -48,6 +48,7 @@ DEFINE_PERCPU(struct eth_tx_queue *, eth_txqs[NETHDEV]);
 struct myresponse
 {
     uint64_t id;
+	uint64_t ts;
     char msg [256];
 };
 
@@ -67,7 +68,7 @@ void fake_eth_process_send(void)
 
 	    rsp = mbuf_mtod(txq->bufs[0], struct myresponse *);
 
-		printf("Received : %d \n", ((struct myresponse *)rsp)->id);
+		printf("Received : %d ts: %d \n ", ((struct myresponse *)rsp)->id, ((struct myresponse *)rsp)->ts);
 
 		txq->len = 0;
 	}

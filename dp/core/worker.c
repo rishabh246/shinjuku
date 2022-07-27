@@ -64,21 +64,19 @@
 bool PREEMPT_NOW = false;
 
 // ---- Added for tests ----
-extern uint64_t     TEST_TOTAL_PACKETS_COUNTER;
-extern uint64_t     TEST_RCVD_SMALL_PACKETS;
-extern uint64_t     TEST_RCVD_BIG_PACKETS;
-extern uint64_t     TEST_START_TIME;
-extern uint64_t     TEST_END_TIME;
-extern bool         TEST_FINISHED;
+extern uint64_t TEST_TOTAL_PACKETS_COUNTER;
+extern uint64_t TEST_RCVD_SMALL_PACKETS;
+extern uint64_t TEST_RCVD_BIG_PACKETS;
+extern uint64_t TEST_START_TIME;
+extern uint64_t TEST_END_TIME;
+extern bool TEST_FINISHED;
 
 // Added for leveldb support
-extern leveldb_t * db;
-extern leveldb_iterator_t *iter;
-extern leveldb_options_t 		*options;
-extern leveldb_readoptions_t 	*roptions;
-extern leveldb_writeoptions_t 	*woptions;
- 
-
+extern leveldb_t *db;
+// extern leveldb_iterator_t *iter;
+extern leveldb_options_t *options;
+extern leveldb_readoptions_t *roptions;
+extern leveldb_writeoptions_t *woptions;
 
 #define PREEMPT_VECTOR 0xf2
 
@@ -316,25 +314,27 @@ static inline void handle_new_packet(void)
 static void simple_generic_work(long ns, int id)
 {
     uint64_t i = 0, to_run = 0;
-    float us = (float) ns / 12;
-    
+    float us = (float)ns / 12;
+
     to_run = us / 3.3;
 
-    asm volatile("sti" :::);
+    asm volatile("sti" ::
+                     :);
     do
     {
-        asm volatile ("nop");
-        i ++;
-        if(unlikely(get_ns() - JOB_STARTED_AT > 4900))
+        asm volatile("nop");
+        i++;
+        if (unlikely(get_ns() - JOB_STARTED_AT > 4900))
         {
-            asm volatile ("nop");
+            asm volatile("nop");
 
-            #if SCHEDULE_METHOD == METHOD_YIELD
+#if SCHEDULE_METHOD == METHOD_YIELD
             swapcontext_fast_to_control(cont, &uctx_main);
-            #endif
+#endif
         }
     } while (to_run > i);
-    asm volatile("cli" :::);
+    asm volatile("cli" ::
+                     :);
 
     TEST_TOTAL_PACKETS_COUNTER += 1;
 
@@ -344,21 +344,20 @@ static void simple_generic_work(long ns, int id)
         TEST_FINISHED = true;
     }
 
-    if (ns == BENCHMARK_SMALL_PKT_NS) 
+    if (ns == BENCHMARK_SMALL_PKT_NS)
         TEST_RCVD_SMALL_PACKETS += 1;
-    else 
+    else
         TEST_RCVD_BIG_PACKETS += 1;
 
     finished = true;
     swapcontext_very_fast(cont, &uctx_main);
 }
 
-
 static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 {
     // Set interrupt flag
     asm volatile("sti" :::);
-    
+
     char *db_err = NULL;
     int read_len = 0;
 
@@ -366,23 +365,39 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     {
     case (DB_PUT):
     {
-        // leveldb_put(db, woptions,
-        //             db_pkg->key, KEYSIZE,
-        //             db_pkg->val, VALSIZE,
-        //             &db_err);
+        asm volatile("cli" :::);
+        leveldb_put(db, woptions,
+                    db_pkg->key, KEYSIZE,
+                    db_pkg->val, VALSIZE,
+                    &db_err);
+        asm volatile("sti" :::);
+
 
         break;
     }
 
     case (DB_GET):
     {
-        // char *read = leveldb_get(db, roptions,
-        //                          db_pkg->key, KEYSIZE,
-        //                          &read_len, &db_err);
+        asm volatile("cli" :::);
+        leveldb_get(db, roptions,
+                    db_pkg->key, KEYSIZE,
+                    &read_len, &db_err);
+        asm volatile("sti" :::);
+
         break;
     }
     case (DB_DELETE):
     {
+        int k = 0;
+
+        while (k < 50000)
+        {
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
+            asm volatile("nop");
+            k++;
+        }
         // leveldb_delete(db, woptions,
         //                db_pkg->key, KEYSIZE,
         //                &db_err);
@@ -391,11 +406,42 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     }
     case (DB_ITERATOR):
     {
+        asm volatile("cli" :::);
+        leveldb_iterator_t *iter = leveldb_create_iterator(db, roptions);
+        asm volatile("sti" :::);
+
+        asm volatile("cli" :::);
+        leveldb_iter_seek_to_first(iter);
+        asm volatile("sti" :::);
+
+        while (true)
+        {
+            asm volatile("cli" :::);
+
+            if (!leveldb_iter_valid(iter))
+            {
+                break;
+            }
+            asm volatile("sti" :::);
+
+            char *retr_key;
+            size_t klen;
+
+            asm volatile("cli" :::);    
+            leveldb_iter_next(iter);
+            asm volatile("sti" :::);
+        }
+        asm volatile("cli" :::);
+        leveldb_iter_destroy(iter);
+        asm volatile("sti" :::);
+
         // for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter); leveldb_iter_next(iter))
         // {
         //     char *retr_key;
         //     size_t klen;
         //     retr_key = leveldb_iter_key(iter, &klen);
+
+        //     // swapcontext_fast_to_control(cont, &uctx_main);
         // }
 
         break;
@@ -405,7 +451,10 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     }
 
     // printf("Type of request %d, handle time (ns): %d\n", db_pkg->type, get_ns()-start_time);
-    asm volatile("cli" :::);
+
+    fake_network_send(db_pkg->type, get_ns() - start_time, "finish", 7);
+    asm volatile("cli" ::
+                     :);
     finished = true;
     swapcontext_very_fast(cont, &uctx_main);
 }
@@ -415,13 +464,12 @@ static inline void handle_fake_new_packet(void)
     int ret;
     struct mbuf *pkt;
     // struct custom_payload *req;
-    struct db_req* req;
+    struct db_req *req;
 
     pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
 
     // req = mbuf_mtod(pkt, struct custom_payload *);
     req = mbuf_mtod(pkt, struct db_req *);
-    
 
     if (req == NULL)
     {
@@ -436,7 +484,6 @@ static inline void handle_fake_new_packet(void)
 
     // makecontext(cont, (void (*)(void))simple_generic_work, 2, req->ns, req->id);
     makecontext(cont, (void (*)(void))do_db_generic_work, 2, req, get_ns());
-
 
     finished = false;
     ret = swapcontext_very_fast(&uctx_main, cont);
@@ -489,7 +536,9 @@ static inline void handle_fake_request(void)
         handle_fake_new_packet();
     }
     else
+    {
         handle_context();
+    }
 }
 
 static inline void finish_request(void)
