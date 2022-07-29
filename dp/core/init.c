@@ -66,6 +66,8 @@
 #include <ucontext.h>
 #include <time.h>
 
+#include "helpers.h"
+
 #define MSR_RAPL_POWER_UNIT 1542
 #define ENERGY_UNIT_MASK 0x1F00
 #define ENERGY_UNIT_OFFSET 0x08
@@ -102,6 +104,8 @@ extern struct mempool stack_pool;
 
 // Flag that controls whether interrupts are disabled during memory allocation.
 uint8_t flag;
+
+bool INIT_FINISHED = false;
 
 struct init_vector_t {
 	const char *name;
@@ -453,32 +457,27 @@ int main(int argc, char *argv[])
   
 	log_info("init done\n");
 
-	options = leveldb_options_create();
+	options  = leveldb_options_create();
 	roptions = leveldb_readoptions_create();
 	woptions = leveldb_writeoptions_create();
-	
 	leveldb_options_set_create_if_missing(options, 1);
 	
-	char *err = NULL;
-    db = leveldb_open(options, "/tmp/leveldb", &err);
 
+	char *err = NULL;
+    db = leveldb_open(options, "/tmpfs/experiments/leveldb", &err);
 	assert(!err);
 
 	char * db_err;
 	int len;
-
 	leveldb_put(db, woptions, "mykey", 5, "myval", 5, &db_err);
 
-	char * retdb = leveldb_get(db, roptions, 
-		"mykey", 5, &len, &db_err);
-
+	char * retdb = leveldb_get(db, roptions, "mykey", 5, &len, &db_err);
 	log_info("read data db: %s \n", retdb);
+	// assert(strcmp(retdb,"myval") == 0);
 
-	assert(strcmp(retdb,"myval") == 0);
 
 	randomized_keys_init(100000);
-
-	for (size_t i = 0; i < 100000; i++)
+	for (size_t i = 10; i < 100000; i++)
 	{
 		char keybuf[13], valbuf[13]; 
 		snprintf(keybuf, 10, "key%d", randomized_keys[i]);
@@ -491,6 +490,63 @@ int main(int argc, char *argv[])
 	flag = 1;
 
 	log_info("Init Leveldb - with prefilled random key-values\n");
+
+	uint64_t start, end;
+
+	start = get_ns();
+    for (size_t i = 0; i < 100000; i++)
+    {
+        asm volatile ("sti");
+		asm volatile ("cli");
+    }
+	end = get_ns();
+
+
+
+	unsigned long iter_counter = 0;
+	unsigned long time_counter = 0;
+
+	for (size_t i = 0; i < 30; i++)
+	{
+		leveldb_iterator_t *iter =leveldb_create_iterator(db, roptions);
+		leveldb_iter_seek_to_first(iter);
+
+		unsigned long iter_start = get_ns();
+		while (true)
+		{
+			if (!leveldb_iter_valid(iter))
+			{
+				break;
+			}
+
+			char *retr_key;
+			size_t klen;
+
+			retr_key = leveldb_iter_key(iter, &klen);
+
+			if(retr_key == "asdasd")
+			{
+				asm volatile ("nop");
+			}
+
+			leveldb_iter_next(iter);
+			iter_counter ++;
+		}
+		unsigned long iter_stop = get_ns();
+
+		leveldb_iter_destroy(iter);
+		time_counter += (iter_stop - iter_start);
+	}
+
+	printf("total iteration: %lu, time: %lu, time per iter: %d\n", iter_counter, time_counter, time_counter/iter_counter);
+
+
+
+
+
+	printf("sti,cli delay: %d\n",end - start);
+
+	INIT_FINISHED = true;
 
   do_dispatching(CFG.num_cpus);
 	log_info("finished handling contexts, looping forever...\n");

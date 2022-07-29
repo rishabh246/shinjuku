@@ -23,6 +23,7 @@ typedef enum
     DB_GET,
     DB_DELETE,
     DB_ITERATOR,
+    DB_SEEK,
     DB_CUSTOM,         // This type added for tests, see below.
 } DB_REQ_TYPE;
 

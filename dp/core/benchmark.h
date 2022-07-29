@@ -9,11 +9,11 @@
 // 2 -> None (Cause Hol-block)
 /* ----------------------------- */
 
-#define BENCHMARK_NO_PACKETS            3 
+#define BENCHMARK_NO_PACKETS          500 
 #define BENCHMARK_TYPE       	        1
-#define BENCHMARK_STOP_AT_PACKET    20000
+#define BENCHMARK_STOP_AT_PACKET      250
 #define BENCHMARK_STOP_AT_NS        1000000 * 20 
-#define SCHEDULE_METHOD             METHOD_PI
+#define SCHEDULE_METHOD             METHOD_YIELD
 
 // Schedule Methods
 #define METHOD_PI       0

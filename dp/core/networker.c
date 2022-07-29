@@ -48,6 +48,7 @@
 #include "helpers.h"
 #include "benchmark.h"
 
+extern bool INIT_FINISHED;
 bool TEST_STARTED = false;
 
 struct custom_payload* generate_benchmark_request(struct mbuf* temp, uint64_t t);
@@ -94,6 +95,10 @@ void do_fake_networking(void)
 	log_info("Generating fake works\n");
 	log_info("Test started\n");
 
+	while (!INIT_FINISHED);
+	
+	
+	DB_REQ_TYPE request_types [2] = { DB_ITERATOR, DB_GET};
 
 	while (packet_counter < BENCHMARK_NO_PACKETS + 2)
 	{
@@ -110,7 +115,7 @@ void do_fake_networking(void)
 		{
 			struct mbuf* temp = mbuf_alloc_local();
 
-			generate_db_req(DB_GET, temp);
+			generate_db_req(request_types[rand() % 2], temp);
 			// generate_benchmark_request(temp, packet_counter);
 			
 			// -------- Send --------
@@ -128,26 +133,30 @@ void do_fake_networking(void)
 struct db_req* generate_db_req(DB_REQ_TYPE type, struct mbuf * temp)
 {
 	struct db_req* req = mbuf_mtod(temp, struct db_req *);
+	req->type = type;
 
 	if (type == DB_GET)
 	{
-		req->type = DB_GET;
 		strcpy(req->key, "musakey");
 		strcpy(req->val, "musavalue");
 	} 
 	else if(type == DB_ITERATOR)
 	{
-		req->type = DB_ITERATOR;
+		strcpy(req->key, "");
+		strcpy(req->key, "");
 	}
 	else if(type == DB_DELETE)
 	{
-		req->type = DB_DELETE;
 	}
-	else
+	else if(type == DB_PUT)
 	{
-		req->type = DB_GET;
 		strcpy(req->key, "musakey");
 		strcpy(req->val, "musavalue");
+	}
+	else if (type == DB_SEEK)
+	{
+		strcpy(req->key, "");
+		strcpy(req->key, "");
 	}
 
 	req->ts = get_ns();

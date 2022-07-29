@@ -68,7 +68,7 @@ void fake_eth_process_send(void)
 
 	    rsp = mbuf_mtod(txq->bufs[0], struct myresponse *);
 
-		printf("Received : %d ts: %d \n ", ((struct myresponse *)rsp)->id, ((struct myresponse *)rsp)->ts);
+		printf("Received : %d ts: %llu \n", ((struct myresponse *)rsp)->id, ((struct myresponse *)rsp)->ts);
 
 		txq->len = 0;
 	}

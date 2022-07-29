@@ -43,6 +43,7 @@
 extern uint64_t total_scheduled;
 extern bool TEST_STARTED;
 extern bool IS_FIRST_PACKET;
+extern bool INIT_FINISHED;
 
 uint64_t TEST_START_TIME;
 uint64_t TEST_END_TIME;
@@ -56,7 +57,7 @@ extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 extern void yield_handler(void);
 
 #define PREEMPT_VECTOR 0xf2
-#define PREEMPTION_DELAY 6000
+#define PREEMPTION_DELAY 5000
 
 static void timestamp_init(int num_workers)
 {
@@ -200,6 +201,8 @@ void do_dispatching(int num_cpus)
 	int i;
 	uint64_t cur_time;
 
+	while (!INIT_FINISHED);
+	
 	preempt_check_init(num_cpus - 2);
 	timestamp_init(num_cpus - 2);
 	bool flag = true;
