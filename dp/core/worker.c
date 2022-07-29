@@ -60,6 +60,10 @@
 
 #include "helpers.h"
 #include "benchmark.h"
+#include <sys/stat.h>
+#include <fcntl.h>
+
+#include "/home/m8/shinjuku-develop/cfile/aaa_c_connector.h"
 
 bool PREEMPT_NOW = false;
 
@@ -156,11 +160,10 @@ int response_init_cpu(void)
 
 static void test_handler(struct dune_tf *tf)
 {
-    asm volatile("cli" ::
-                     :);
+    asm volatile("cli" :::);
 
     dune_apic_eoi();
-    total_scheduled += 1;
+    
     swapcontext_fast_to_control(cont, &uctx_main);
 }
 
@@ -353,36 +356,41 @@ static void simple_generic_work(long ns, int id)
     swapcontext_very_fast(cont, &uctx_main);
 }
 
-static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
+static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
 {
     // Set interrupt flag
-    asm volatile("sti" :::);
-
-    char *db_err = NULL;
-    int read_len = 0;
+    asm volatile("sti" ::
+                     :);
+    uint64_t start_time = _start_time, yield_counter = 0;
+    DB_REQ_TYPE type = db_pkg->type;
 
     switch (db_pkg->type)
     {
     case (DB_PUT):
     {
-        asm volatile("cli" :::);
+        char *db_err = NULL;
+
+        PRE_PROTECTCALL;
         leveldb_put(db, woptions,
                     db_pkg->key, KEYSIZE,
                     db_pkg->val, VALSIZE,
                     &db_err);
-        asm volatile("sti" :::);
-
+        POST_PROTECTCALL;
 
         break;
     }
 
     case (DB_GET):
     {
-        asm volatile("cli" :::);
-        leveldb_get(db, roptions,
-                    db_pkg->key, KEYSIZE,
-                    &read_len, &db_err);
-        asm volatile("sti" :::);
+        char *db_err = NULL;
+        int read_len;
+
+        PRE_PROTECTCALL;
+        char *returned_value = leveldb_get(db, roptions,
+                                "key1", 4,
+                                &read_len, &db_err);
+        POST_PROTECTCALL;
+
 
         break;
     }
@@ -398,51 +406,77 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
             asm volatile("nop");
             k++;
         }
-        // leveldb_delete(db, woptions,
-        //                db_pkg->key, KEYSIZE,
-        //                &db_err);
 
         break;
     }
     case (DB_ITERATOR):
     {
-        asm volatile("cli" :::);
+        PRE_PROTECTCALL;
         leveldb_iterator_t *iter = leveldb_create_iterator(db, roptions);
-        asm volatile("sti" :::);
+        POST_PROTECTCALL;
 
-        asm volatile("cli" :::);
+        #if SCHEDULE_METHOD == METHOD_YIELD
+        swapcontext_fast_to_control(cont, &uctx_main);
+        #endif
+
+        PRE_PROTECTCALL;
         leveldb_iter_seek_to_first(iter);
-        asm volatile("sti" :::);
+        POST_PROTECTCALL;
 
         while (true)
         {
-            asm volatile("cli" :::);
-
+            PRE_PROTECTCALL;
             if (!leveldb_iter_valid(iter))
             {
                 break;
             }
-            asm volatile("sti" :::);
+            POST_PROTECTCALL;
 
             char *retr_key;
-            size_t klen;
+			size_t klen;
 
-            asm volatile("cli" :::);    
+            PRE_PROTECTCALL;
+			retr_key = leveldb_iter_key(iter, &klen);
+			POST_PROTECTCALL;
+
+            if(retr_key == "asdasd")
+			{
+				asm volatile ("nop");
+			}
+
+
+            PRE_PROTECTCALL;
             leveldb_iter_next(iter);
-            asm volatile("sti" :::);
+            POST_PROTECTCALL;
+
+            #if SCHEDULE_METHOD == METHOD_YIELD
+            yield_counter++;
+            if (unlikely(yield_counter == 40))
+            {
+                swapcontext_fast_to_control(cont, &uctx_main);
+                yield_counter = 0;
+            }
+            #endif
         }
-        asm volatile("cli" :::);
+
+        PRE_PROTECTCALL;
         leveldb_iter_destroy(iter);
-        asm volatile("sti" :::);
+        POST_PROTECTCALL;
 
-        // for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter); leveldb_iter_next(iter))
-        // {
-        //     char *retr_key;
-        //     size_t klen;
-        //     retr_key = leveldb_iter_key(iter, &klen);
+        break;
+    }
 
-        //     // swapcontext_fast_to_control(cont, &uctx_main);
-        // }
+    case (DB_SEEK):
+    {
+        PRE_PROTECTCALL;
+        leveldb_iterator_t *iter = leveldb_create_iterator(db, roptions);
+        POST_PROTECTCALL;
+
+        // swapcontext_fast_to_control(cont, &uctx_main);
+
+        PRE_PROTECTCALL;
+        leveldb_iter_seek(iter,"mykey",5);
+        POST_PROTECTCALL;
 
         break;
     }
@@ -452,9 +486,26 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 
     // printf("Type of request %d, handle time (ns): %d\n", db_pkg->type, get_ns()-start_time);
 
-    fake_network_send(db_pkg->type, get_ns() - start_time, "finish", 7);
+    // fake_network_send(db_pkg->type, start_time - get_ns(), "finish", 7);
     asm volatile("cli" ::
                      :);
+
+    TEST_TOTAL_PACKETS_COUNTER += 1;
+
+    if (TEST_TOTAL_PACKETS_COUNTER == BENCHMARK_STOP_AT_PACKET)
+    {
+        TEST_END_TIME = get_us();
+        TEST_FINISHED = true;
+    }
+
+    if (type == DB_GET || type == DB_PUT){
+        TEST_RCVD_SMALL_PACKETS += 1;
+    }
+    else
+    {
+        TEST_RCVD_BIG_PACKETS += 1;
+    }
+
     finished = true;
     swapcontext_very_fast(cont, &uctx_main);
 }

@@ -5,6 +5,15 @@
 #include <time.h>
 #include <sys/time.h>
 #include <stdint.h>
+#include "benchmark.h"
+
+#if SCHEDULE_METHOD == METHOD_PI
+#define PRE_PROTECTCALL { asm volatile ("cli" :::); }
+#define POST_PROTECTCALL { asm volatile ("sti" :::); }
+#else 
+#define PRE_PROTECTCALL { }
+#define POST_PROTECTCALL { }
+#endif 
 
 static inline uint64_t get_us()
 {
