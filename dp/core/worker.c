@@ -63,8 +63,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "/home/m8/shinjuku-develop/cfile/aaa_c_connector.h"
-
 bool PREEMPT_NOW = false;
 
 // ---- Added for tests ----
