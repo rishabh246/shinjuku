@@ -160,6 +160,10 @@ static void test_handler(struct dune_tf *tf)
 {
     asm volatile("cli" :::);
 
+    #if SCHEDULE_METHOD == METHOD_YIELD
+    log_err("Interrupt fired \n");
+    #endif
+
     dune_apic_eoi();
     
     swapcontext_fast_to_control(cont, &uctx_main);
@@ -361,6 +365,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
                      :);
     uint64_t start_time = _start_time, yield_counter = 0;
     DB_REQ_TYPE type = db_pkg->type;
+    uint64_t iter_cnt = 0;
 
     switch (db_pkg->type)
     {
@@ -413,9 +418,9 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
         leveldb_iterator_t *iter = leveldb_create_iterator(db, roptions);
         POST_PROTECTCALL;
 
-        #if SCHEDULE_METHOD == METHOD_YIELD
-        swapcontext_fast_to_control(cont, &uctx_main);
-        #endif
+        // #if SCHEDULE_METHOD == METHOD_YIELD
+        // swapcontext_fast_to_control(cont, &uctx_main);
+        // #endif
 
         PRE_PROTECTCALL;
         leveldb_iter_seek_to_first(iter);
@@ -423,6 +428,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
 
         while (true)
         {
+            iter_cnt ++;
             PRE_PROTECTCALL;
             if (!leveldb_iter_valid(iter))
             {
@@ -442,14 +448,13 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
 				asm volatile ("nop");
 			}
 
-
             PRE_PROTECTCALL;
             leveldb_iter_next(iter);
             POST_PROTECTCALL;
 
             #if SCHEDULE_METHOD == METHOD_YIELD
             yield_counter++;
-            if (unlikely(yield_counter == 40))
+            if (unlikely(yield_counter == 200))
             {
                 swapcontext_fast_to_control(cont, &uctx_main);
                 yield_counter = 0;
@@ -504,6 +509,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
         TEST_RCVD_BIG_PACKETS += 1;
     }
 
+    // printf("%llu\n", iter_cnt);
     finished = true;
     swapcontext_very_fast(cont, &uctx_main);
 }

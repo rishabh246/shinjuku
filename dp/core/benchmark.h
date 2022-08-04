@@ -13,7 +13,9 @@
 #define BENCHMARK_TYPE       	        1
 #define BENCHMARK_STOP_AT_PACKET      250
 #define BENCHMARK_STOP_AT_NS        1000000 * 20 
-#define SCHEDULE_METHOD             METHOD_YIELD
+#define SCHEDULE_METHOD       METHOD_YIELD
+#define DB_NO_KEY                   100000
+
 
 // Schedule Methods
 #define METHOD_PI       0

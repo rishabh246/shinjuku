@@ -475,76 +475,11 @@ int main(int argc, char *argv[])
 	log_info("read data db: %s \n", retdb);
 	// assert(strcmp(retdb,"myval") == 0);
 
-
-	randomized_keys_init(100000);
-	for (size_t i = 10; i < 100000; i++)
-	{
-		char keybuf[13], valbuf[13]; 
-		snprintf(keybuf, 10, "key%d", randomized_keys[i]);
-		snprintf(valbuf, 10, "val%d", randomized_keys[i]); 
-		leveldb_put(db, woptions, keybuf, 10, valbuf, 10, &db_err);
-	}
-
-	iter = leveldb_create_iterator(db, roptions);
+	prepare_complex_db(db, DB_NO_KEY, woptions);
 
 	flag = 1;
 
 	log_info("Init Leveldb - with prefilled random key-values\n");
-
-	uint64_t start, end;
-
-	start = get_ns();
-    for (size_t i = 0; i < 100000; i++)
-    {
-        asm volatile ("sti");
-		asm volatile ("cli");
-    }
-	end = get_ns();
-
-
-
-	unsigned long iter_counter = 0;
-	unsigned long time_counter = 0;
-
-	for (size_t i = 0; i < 30; i++)
-	{
-		leveldb_iterator_t *iter =leveldb_create_iterator(db, roptions);
-		leveldb_iter_seek_to_first(iter);
-
-		unsigned long iter_start = get_ns();
-		while (true)
-		{
-			if (!leveldb_iter_valid(iter))
-			{
-				break;
-			}
-
-			char *retr_key;
-			size_t klen;
-
-			retr_key = leveldb_iter_key(iter, &klen);
-
-			if(retr_key == "asdasd")
-			{
-				asm volatile ("nop");
-			}
-
-			leveldb_iter_next(iter);
-			iter_counter ++;
-		}
-		unsigned long iter_stop = get_ns();
-
-		leveldb_iter_destroy(iter);
-		time_counter += (iter_stop - iter_start);
-	}
-
-	printf("total iteration: %lu, time: %lu, time per iter: %d\n", iter_counter, time_counter, time_counter/iter_counter);
-
-
-
-
-
-	printf("sti,cli delay: %d\n",end - start);
 
 	INIT_FINISHED = true;
 
