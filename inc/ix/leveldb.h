@@ -64,59 +64,44 @@ static void randomized_keys_init(uint64_t num_keys)
     }
 }
 
+static void check_db_sequential(leveldb_t *db, long num_keys, leveldb_readoptions_t * roptions)
+{
+	char * db_err = NULL;
 
-// static void process_db_pkg(db_req *db_pkg)
-// {
-//     char * db_err = NULL;
+	for (size_t i = 0; i < num_keys; i++)
+	{
+        char keybuf[15];
+        char valbuf[15];
+        int len;
+        snprintf(keybuf, 15, "key%d", i);
+        snprintf(valbuf, 15, "val%d", i);
+        char * r = leveldb_get(db, roptions, keybuf, 15, &len, &db_err);
+        // assert((strcmp(r,valbuf) == 0));
+    }
+}
 
-//     switch (db_pkg->type)
-//     {
-//     case (PUT):
-//     {
-//         leveldb_put(db, woptions, 
-//             ((struct kv_parameter *)(db_pkg->params))->key, KEYSIZE, 
-//             ((struct kv_parameter *)(db_pkg->params))->value, VALSIZE,
-//             &db_err);
-//         break;
-//     }
+static void prepare_complex_db(leveldb_t *db, long num_keys, leveldb_writeoptions_t *woptions)
+{
+	char * db_err = NULL;
 
-//     case (GET):
-//     {
-//         char* read = leveldb_get(db, roptions, 
-//             (db_key)(db_pkg->params), KEYSIZE, 
-//             &read_len, &db_err);
+	randomized_keys_init(num_keys);
 
-//         break;
-//     }
-//     case (DELETE):
-//     {
-//         leveldb_delete(db, woptions, 
-//             (db_key)(db_pkg->params), KEYSIZE,
-//             &db_err);
-        
-//         break;
-//     }
-//     case (CUSTOM):
-//     {
-//         struct custom_payload * payload = (struct custom_payload*)(db_pkg->params);
-        
-//         printf("Starting custom command with id: %d for u=%d \n", payload->id, payload->ms);
-//         int i = 0;
+	for (size_t i = 0; i < num_keys; i++)
+	{
+        char keybuf[20], valbuf[20];
+        snprintf(keybuf, 20, "key%d", i);
+        snprintf(valbuf, 20, "val%d", i);
+        leveldb_put(db, woptions, keybuf, 20, valbuf, 20, &db_err);
+	}
 
-//         do {
-//                 asm volatile ("nop");
-//                 i++;
-//         } while ( i / 0.233 < payload->ms);
-
-//         printf("Work ended with id: %lu \n", payload->id);
-//     }
-//     default:
-//         break;
-//     }
-
-// }
-
-
-// Test structures
-
-// This struct added for test purposes
+	for (int i = 0; i < num_keys; i = i + num_keys / 100)
+	{
+   	for (int j = 1; j < num_keys / 100; j++)
+    	{
+			char keybuf[20];
+			snprintf(keybuf, 20, "key%d", i + j);
+			printf("deleted => %s\n", keybuf);
+			leveldb_delete(db,woptions, keybuf, 20, &db_err); 
+		}
+	}
+} 
