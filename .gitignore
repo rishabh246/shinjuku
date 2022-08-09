@@ -9,7 +9,6 @@
 .depend
 
 /deps/dpdk
-/deps/dune
 /deps/pcidma
 /deps/leveldb
 /shinjuku.conf
@@ -17,5 +16,7 @@
 /client/latency_client
 /client/batch_client
 /db/db
+
+db/bench-db/*
 
 .vscode
