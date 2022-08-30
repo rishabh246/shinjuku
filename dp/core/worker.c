@@ -363,7 +363,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     // Set interrupt flag
     asm volatile("sti" ::
                      :);
-    uint64_t start_time = _start_time, yield_counter = 0;
+    uint64_t start_time = _start_time;
     DB_REQ_TYPE type = db_pkg->type;
     uint64_t iter_cnt = 0;
 
@@ -414,21 +414,41 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     }
     case (DB_ITERATOR):
     {
+        uint64_t yield_counter = 0;
+        int kflag = true;
+        
         PRE_PROTECTCALL;
         leveldb_iterator_t *iter = leveldb_create_iterator(db, roptions);
         POST_PROTECTCALL;
-
-        // #if SCHEDULE_METHOD == METHOD_YIELD
-        // swapcontext_fast_to_control(cont, &uctx_main);
-        // #endif
 
         PRE_PROTECTCALL;
         leveldb_iter_seek_to_first(iter);
         POST_PROTECTCALL;
 
+        #if SCHEDULE_METHOD == METHOD_YIELD
+        swapcontext_fast_to_control(cont, &uctx_main);
+        #endif
+
+
+        // printf("START %d\n", get_ns() - JOB_STARTED_AT);
+
+
         while (true)
         {
-            iter_cnt ++;
+            #if SCHEDULE_METHOD == METHOD_YIELD
+            yield_counter++;
+            if (unlikely(yield_counter == 100))
+            {
+                // if(kflag)
+                // {
+                //     // printf("%d\n", get_ns() - JOB_STARTED_AT);
+                //     kflag = false;
+                // }
+                swapcontext_fast_to_control(cont, &uctx_main);
+                yield_counter = 0;
+            }
+            #endif
+
             PRE_PROTECTCALL;
             if (!leveldb_iter_valid(iter))
             {
@@ -436,35 +456,21 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
             }
             POST_PROTECTCALL;
 
-            char *retr_key;
-			size_t klen;
+			size_t value_len;
 
             PRE_PROTECTCALL;
-			retr_key = leveldb_iter_key(iter, &klen);
-			POST_PROTECTCALL;
-
-            if(retr_key == "asdasd")
-			{
-				asm volatile ("nop");
-			}
+            const char *value_ptr = leveldb_iter_value(iter, &value_len);
+            POST_PROTECTCALL;
 
             PRE_PROTECTCALL;
             leveldb_iter_next(iter);
             POST_PROTECTCALL;
-
-            #if SCHEDULE_METHOD == METHOD_YIELD
-            yield_counter++;
-            if (unlikely(yield_counter == 200))
-            {
-                swapcontext_fast_to_control(cont, &uctx_main);
-                yield_counter = 0;
-            }
-            #endif
         }
 
         PRE_PROTECTCALL;
         leveldb_iter_destroy(iter);
         POST_PROTECTCALL;
+
 
         break;
     }

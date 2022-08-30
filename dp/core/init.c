@@ -475,7 +475,9 @@ int main(int argc, char *argv[])
 	log_info("read data db: %s \n", retdb);
 	// assert(strcmp(retdb,"myval") == 0);
 
-	prepare_complex_db(db, DB_NO_KEY, woptions);
+	// prepare_complex_db(db, DB_NO_KEY, woptions);
+	prepare_simple_db(db, DB_NO_KEY, woptions);
+	check_db_sequential(db, DB_NO_KEY,roptions);
 
 	flag = 1;
 

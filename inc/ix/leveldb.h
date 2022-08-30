@@ -68,15 +68,43 @@ static void check_db_sequential(leveldb_t *db, long num_keys, leveldb_readoption
 
     for (size_t i = 0; i < num_keys; i++)
     {
-        char keybuf[15];
-        char valbuf[15];
+        char keybuf[20], valbuf[20];
         int len;
-        snprintf(keybuf, 15, "key%d", i);
-        snprintf(valbuf, 15, "val%d", i);
-        char *r = leveldb_get(db, roptions, keybuf, 15, &len, &db_err);
-        // assert((strcmp(r,valbuf) == 0));
+        snprintf(keybuf, 20, "key%d", i);
+        snprintf(valbuf, 20, "val%d", i);
+        char *r = leveldb_get(db, roptions, keybuf, 20, &len, &db_err);
+
+		// printf("%s\n",r);
+
+		// if (db_err != NULL)
+		// {
+		// 	fprintf(stderr, "read fail. %s\n", keybuf);
+		// 	return (1);
+		// }
     }
 }
+
+static void prepare_simple_db(leveldb_t *db, long num_keys, leveldb_writeoptions_t *woptions)
+{
+	char *db_err = NULL;
+
+	randomized_keys_init(num_keys);
+
+	for (size_t i = 0; i < num_keys; i++)
+	{
+		char keybuf[20], valbuf[20];
+		snprintf(keybuf, 20, "key%d", i);
+		snprintf(valbuf, 20, "val%d", i);
+		leveldb_put(db, woptions, keybuf, 20, valbuf, 20, &db_err);
+
+		if (db_err != NULL)
+		{
+			fprintf(stderr, "write fail. %s\n", keybuf);
+			return (1);
+		}
+	}
+}
+
 
 static void prepare_complex_db(leveldb_t *db, long num_keys, leveldb_writeoptions_t *woptions)
 {
@@ -86,9 +114,9 @@ static void prepare_complex_db(leveldb_t *db, long num_keys, leveldb_writeoption
 
 	for (size_t i = 0; i < num_keys; i++)
 	{
-		char keybuf[15], valbuf[15];
-		snprintf(keybuf, 15, "key%d", i);
-		snprintf(valbuf, 15, "val%d", i);
+		char keybuf[20], valbuf[20];
+		snprintf(keybuf, 20, "key%d", i);
+		snprintf(valbuf, 20, "val%d", i);
 		leveldb_put(db, woptions, keybuf, strlen(keybuf), valbuf, strlen(valbuf), &db_err);
 
 		if (db_err != NULL)
@@ -104,8 +132,8 @@ static void prepare_complex_db(leveldb_t *db, long num_keys, leveldb_writeoption
 	{
 		for (int j = 1; j < num_keys / 100; j++)
 		{
-			char keybuf[15];
-			snprintf(keybuf, 15, "key%d", i + j);
+			char keybuf[20];
+			snprintf(keybuf, 20, "key%d", i + j);
 			leveldb_delete(db, woptions, keybuf, strlen(keybuf), &db_err);
 
 			if (db_err != NULL)

@@ -98,7 +98,7 @@ void do_fake_networking(void)
 	while (!INIT_FINISHED);
 	
 	
-	DB_REQ_TYPE request_types [2] = { DB_ITERATOR, DB_GET};
+	DB_REQ_TYPE request_types [2] = { DB_ITERATOR , DB_GET };
 
 	while (packet_counter < BENCHMARK_NO_PACKETS + 2)
 	{
@@ -115,7 +115,7 @@ void do_fake_networking(void)
 		{
 			struct mbuf* temp = mbuf_alloc_local();
 
-			generate_db_req(request_types[rand() % 2], temp);
+			generate_db_req(request_types[0], temp);
 			// generate_benchmark_request(temp, packet_counter);
 			
 			// -------- Send --------
