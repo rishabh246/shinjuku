@@ -22,6 +22,9 @@
 # A Makefile for Shinjuku.
 #
 # path for this Makefile to work properly.
+CI_ROOT := /home/m8/shinjuku-develop/compiler-interrupt
+CI_LIB_HOME := $(CI_ROOT)/lib
+
 
 DPDK	= ../deps/dpdk
 DUNE	= ../deps/dune
@@ -30,11 +33,12 @@ DPDK_INC = -I$(DPDK)/build/include -I$(DPDK)/lib/librte_eal/common -I$(DPDK)/dri
 INC	= -I../inc -I$(DUNE)/libdune -I../inc/lwip -I../inc/lwip/ipv4 -I../inc/lwip/ipv6 $(DPDK_INC) -include$(DUNE)/kern/dune.h
 INC	+= -I$(PCIDMA)
 INC += -I ../deps/leveldb/include
+INC += -L$(CI_LIB_HOME) -Wl,-rpath,$(CI_LIB_HOME) -I$(CI_ROOT)/src
 CC	= gcc
-CFLAGS	= -g -Wall -fno-pie -fno-dwarf2-cfi-asm -fno-asynchronous-unwind-tables -O0 -mno-red-zone $(INC) -D__KERNEL__  -DFAKE_WORK $(EXTRA_CFLAGS)
+CFLAGS	=  -g -Wall -fno-pie -fno-dwarf2-cfi-asm -fno-asynchronous-unwind-tables -O0 -mno-red-zone $(INC) -D__KERNEL__ -DFAKE_WORK $(EXTRA_CFLAGS) -L$(CI_LIB_HOME) -Wl,-rpath,$(CI_LIB_HOME)/libci.a -I$(CI_ROOT)/src/
 LD	= g++
 LDFLAGS	= -T ix.ld -no-pie
-LDLIBS	= -lrt -lpthread -lm -lnuma -ldl -lconfig ../deps/leveldb/build/libleveldb.a -lgflags -lsnappy -lz -llz4
+LDLIBS	= -lrt -lpthread -lm -lnuma -ldl -lconfig ../deps/leveldb/ci_libleveldb.a -lstdc++ -lgflags -lsnappy -lz -llz4 
 WRAP_FLAGS = -Wl,-wrap,malloc -Wl,-wrap=malloc -Wl,-wrap=free -Wl,-wrap=calloc -Wl,-wrap=realloc
 
 ifneq ($(DEBUG),)
@@ -55,6 +59,7 @@ endef
 include $(patsubst %, %/dir.mk, $(DIRS))
 
 %.generated.S: %.c
+	@echo $(CC) $(CFLAGS) -o $@ -S $<
 	$(CC) $(CFLAGS) -o $@ -S $<
 
 all: shinjuku
@@ -82,7 +87,7 @@ DPDK_LIBS+=$(DPDK)/build/lib/librte_mempool.a
 DPDK_LIBS+=$(DPDK)/build/lib/librte_ring.a
 
 shinjuku: $(DEPENDENCY) $(OBJS) $(DUNE_LIB) ix.ld
-	$(LD) $(WRAP_FLAGS) $(LDFLAGS) -o shinjuku $(OBJS) -rdynamic $(DUNE_LIB) $(DPDK_LIBS) $(LDLIBS)
+	$(LD) $(WRAP_FLAGS) $(LDFLAGS) -o shinjuku $(OBJS) -rdynamic $(DUNE_LIB) $(DPDK_LIBS) $(LDLIBS) $(CI_LIB_HOME)/libci.so -L$(CI_LIB_HOME) -Wl,-rpath,$(CI_LIB_HOME)/libci.a -I$(CI_ROOT)/src/
 
 clean:
 	cp core/context_fast.S /tmp/context_fast.S

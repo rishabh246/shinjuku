@@ -58,10 +58,14 @@
 #include <net/udp.h>
 #include <net/ethernet.h>
 
+#include <pthread.h>
 #include "helpers.h"
 #include "benchmark.h"
 #include <sys/stat.h>
 #include <fcntl.h>
+
+#include "ci_lib.h"
+
 
 bool PREEMPT_NOW = false;
 
@@ -88,13 +92,12 @@ uint64_t total_scheduled = 0;
 
 // For debugging purposes
 // uint64_t posted_interrupts[1024 * 1024] = {0};
-// uint64_t interrupt_iterator = 0;
-
-// uint64_t yeilds [1024 * 1024] = {0};
-// uint64_t yield_iterator = 0;
+uint64_t interrupt_iterator = 0;
+uint64_t yields[1024 * 1024] = {0};
+uint64_t yield_iterator = 0;
 
 __thread ucontext_t uctx_main;
-__thread ucontext_t *cont;
+__thread ucontext_t *cont = NULL;
 __thread int cpu_nr_;
 __thread volatile uint8_t finished;
 
@@ -122,6 +125,9 @@ struct request
     uint64_t runNs;
     uint64_t genNs;
 };
+
+
+extern uint64_t fclock;
 
 /**
  * myresponse_init - allocates global response datastore
@@ -156,6 +162,16 @@ int response_init_cpu(void)
                           percpu_get(cpu_id));
 }
 
+void ci_interrupt_handler(long ic) 
+{
+    // interrupt_iterator++;
+    // if(unlikely(get_ns() - JOB_STARTED_AT > 4000))
+    // {
+        // yields[yield_iterator++] = get_us();
+        swapcontext_fast_to_control(cont, &uctx_main);
+    // }
+}
+
 static void test_handler(struct dune_tf *tf)
 {
     asm volatile("cli" :::);
@@ -166,7 +182,7 @@ static void test_handler(struct dune_tf *tf)
 
     dune_apic_eoi();
     
-    swapcontext_fast_to_control(cont, &uctx_main);
+    swapcontext_very_fast(cont, &uctx_main);
 }
 
 /**
@@ -366,6 +382,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     uint64_t start_time = _start_time;
     DB_REQ_TYPE type = db_pkg->type;
     uint64_t iter_cnt = 0;
+    ci_enable();
 
     switch (db_pkg->type)
     {
@@ -414,9 +431,9 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     }
     case (DB_ITERATOR):
     {
-        uint64_t yield_counter = 0;
+        uint64_t yield_counter = 30;
         int kflag = true;
-        
+
         PRE_PROTECTCALL;
         leveldb_iterator_t *iter = leveldb_create_iterator(db, roptions);
         POST_PROTECTCALL;
@@ -425,25 +442,16 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
         leveldb_iter_seek_to_first(iter);
         POST_PROTECTCALL;
 
-        #if SCHEDULE_METHOD == METHOD_YIELD
-        swapcontext_fast_to_control(cont, &uctx_main);
-        #endif
-
-
-        // printf("START %d\n", get_ns() - JOB_STARTED_AT);
-
+        // #if SCHEDULE_METHOD == METHOD_YIELD
+        // swapcontext_fast_to_control(cont, &uctx_main);
+        // #endif
 
         while (true)
         {
             #if SCHEDULE_METHOD == METHOD_YIELD
             yield_counter++;
-            if (unlikely(yield_counter == 100))
+            if (unlikely(yield_counter == 40))
             {
-                // if(kflag)
-                // {
-                //     // printf("%d\n", get_ns() - JOB_STARTED_AT);
-                //     kflag = false;
-                // }
                 swapcontext_fast_to_control(cont, &uctx_main);
                 yield_counter = 0;
             }
@@ -470,7 +478,6 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
         PRE_PROTECTCALL;
         leveldb_iter_destroy(iter);
         POST_PROTECTCALL;
-
 
         break;
     }
@@ -504,6 +511,8 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     if (TEST_TOTAL_PACKETS_COUNTER == BENCHMARK_STOP_AT_PACKET)
     {
         TEST_END_TIME = get_us();
+        printf("total exit %d ; real exit: %d\n", interrupt_iterator, yield_iterator);
+
         TEST_FINISHED = true;
     }
 
@@ -514,6 +523,14 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     {
         TEST_RCVD_BIG_PACKETS += 1;
     }
+
+
+
+    // for (size_t i = 0; i < yield_iterator - 1; i++)
+    // {
+    //     printf("%d , ", yields[i+1] - yields[i]);
+    // }
+    // printf("\n");
 
     // printf("%llu\n", iter_cnt);
     finished = true;
@@ -621,9 +638,11 @@ static inline void finish_request(void)
 }
 
 void do_work(void)
-{
+{   
     init_worker();
     log_info("do_work: Waiting for dispatcher work\n");
+
+    register_ci(200, 4000, ci_interrupt_handler);
 
     // sure about vdso
     for (size_t i = 0; i < 50; i++)
@@ -632,7 +651,6 @@ void do_work(void)
     while (true)
     {
         JOB_STARTED_AT = get_ns();
-
 #ifdef FAKE_WORK
         handle_fake_request();
         fake_eth_process_send();
