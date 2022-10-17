@@ -62,6 +62,8 @@
 #include "benchmark.h"
 #include <sys/stat.h>
 #include <fcntl.h>
+#include "looplib.h"
+#include "concord.h"
 
 bool PREEMPT_NOW = false;
 
@@ -167,6 +169,11 @@ static void test_handler(struct dune_tf *tf)
     dune_apic_eoi();
     
     swapcontext_fast_to_control(cont, &uctx_main);
+}
+
+void concord_func()
+{
+    asm volatile("nop");
 }
 
 /**
@@ -414,62 +421,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     }
     case (DB_ITERATOR):
     {
-        uint64_t yield_counter = 0;
-        int kflag = true;
-        
-        PRE_PROTECTCALL;
-        leveldb_iterator_t *iter = leveldb_create_iterator(db, roptions);
-        POST_PROTECTCALL;
-
-        PRE_PROTECTCALL;
-        leveldb_iter_seek_to_first(iter);
-        POST_PROTECTCALL;
-
-        #if SCHEDULE_METHOD == METHOD_YIELD
-        swapcontext_fast_to_control(cont, &uctx_main);
-        #endif
-
-
-        // printf("START %d\n", get_ns() - JOB_STARTED_AT);
-
-
-        while (true)
-        {
-            #if SCHEDULE_METHOD == METHOD_YIELD
-            yield_counter++;
-            if (unlikely(yield_counter == 100))
-            {
-                // if(kflag)
-                // {
-                //     // printf("%d\n", get_ns() - JOB_STARTED_AT);
-                //     kflag = false;
-                // }
-                swapcontext_fast_to_control(cont, &uctx_main);
-                yield_counter = 0;
-            }
-            #endif
-
-            PRE_PROTECTCALL;
-            if (!leveldb_iter_valid(iter))
-            {
-                break;
-            }
-            POST_PROTECTCALL;
-
-			size_t value_len;
-
-            PRE_PROTECTCALL;
-            const char *value_ptr = leveldb_iter_value(iter, &value_len);
-            POST_PROTECTCALL;
-
-            PRE_PROTECTCALL;
-            leveldb_iter_next(iter);
-            POST_PROTECTCALL;
-        }
-
-        PRE_PROTECTCALL;
-        leveldb_iter_destroy(iter);
-        POST_PROTECTCALL;
+        libloop(100000);
 
 
         break;
