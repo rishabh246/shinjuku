@@ -59,6 +59,8 @@ extern void yield_handler(void);
 #define PREEMPT_VECTOR 0xf2
 #define PREEMPTION_DELAY 5000
 
+extern int concord_preempt_now;
+
 static void timestamp_init(int num_workers)
 {
 	int i;
@@ -131,6 +133,16 @@ static inline void preempt_worker(int i, uint64_t cur_time)
 	}
 }
 
+static inline void concord_preempt_worker(int i, uint64_t cur_time)
+{
+	if (preempt_check[i] && (((cur_time - timestamps[i]) / 2.5) > PREEMPTION_DELAY))
+	{
+		// Avoid preempting more times.
+		concord_preempt_now = 1;
+		preempt_check[i] = false;
+	}
+}
+
 static inline void handle_worker(int i, uint64_t cur_time)
 {
 	if (worker_responses[i].flag != RUNNING)
@@ -149,6 +161,9 @@ static inline void handle_worker(int i, uint64_t cur_time)
 	{
 		#if SCHEDULE_METHOD == METHOD_PI
 		preempt_worker(i, cur_time);
+		#endif
+		#if (SCHEDULE_METHOD == METHOD_CONCORD)
+		concord_preempt_worker(i, cur_time);
 		#endif
 	}
 }

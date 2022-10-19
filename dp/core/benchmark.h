@@ -13,7 +13,7 @@
 #define BENCHMARK_TYPE       	        1
 #define BENCHMARK_STOP_AT_PACKET      1000
 #define BENCHMARK_STOP_AT_NS        1000000 * 20 
-#define SCHEDULE_METHOD          METHOD_YIELD
+#define SCHEDULE_METHOD             METHOD_YIELD
 #define DB_NO_KEY                   100000
 
 
@@ -21,6 +21,7 @@
 #define METHOD_PI       0
 #define METHOD_YIELD    1
 #define METHOD_NONE     2
+#define METHOD_CONCORD  3
 
 // Define Packet Sizes
 #if BENCHMARK_TYPE == 1
