@@ -22,24 +22,31 @@
 # A Makefile for Shinjuku.
 #
 # path for this Makefile to work properly.
-CONCORD_ROOT = /home/m8/concord-1
-CONCROD_LIB = $(CONCORD_ROOT)/src/lib/concord.a
+
+ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+
+# ======= MODIFY THIS VARS =======
+CONCORD_ROOT = $(ROOT_DIR)/../..
+CONCORD_LIB = $(CONCORD_ROOT)/src/lib/concord.a
 CONCORD_INC = $(CONCORD_ROOT)/src/lib
 
-BENCH_LIB = $(CONCORD_ROOT)/benchmarks/looplib/looplib.a
-BENCH_INC = $(CONCORD_ROOT)/benchmarks/looplib/inc/
+BENCH_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/lib/concord_apileveldb_clear.a
+BENCH_INC = $(CONCORD_ROOT)/benchmarks/leveldb/lib
+
+# ================================
+
 
 DPDK	= ../deps/dpdk
 DUNE	= ../deps/dune
 PCIDMA	= ../deps/pcidma
 DPDK_INC = -I$(DPDK)/build/include -I$(DPDK)/lib/librte_eal/common -I$(DPDK)/drivers/net/ixgbe -I$(DPDK)/drivers/net/i40e
 INC	= -I../inc -I$(DUNE)/libdune -I../inc/lwip -I../inc/lwip/ipv4 -I../inc/lwip/ipv6 $(DPDK_INC) -include$(DUNE)/kern/dune.h
-INC	+= -I$(PCIDMA)
+INC	+= -I$(PCIDMA) -I$(CONCORD_INC) -I$(BENCH_INC) -I../deps/leveldb/include 
 CC	= gcc
-CFLAGS= -g -Wall -fno-pie -fno-dwarf2-cfi-asm -fno-asynchronous-unwind-tables -O0 -mno-red-zone $(INC) -D__KERNEL__ -DFAKE_WORK $(EXTRA_CFLAGS) -I../deps/leveldb/include -I$(CONCORD_INC) -I$(BENCH_INC) 
+CFLAGS= -g -Wall -fno-pie -fno-dwarf2-cfi-asm -fno-asynchronous-unwind-tables -O0 -mno-red-zone $(INC) -D__KERNEL__ -DFAKE_WORK $(EXTRA_CFLAGS)
 LD	= g++
 LDFLAGS	= -T ix.ld -no-pie
-LDLIBS	= -lrt  -lpthread -lm -lnuma -ldl -lconfig $(BENCH_LIB) -Wl,-rpath,$(CONCORD_LIB)  ../deps/leveldb/build/libleveldb.a  -lgflags -lsnappy -lz -llz4
+LDLIBS	= -lrt  -lpthread -lm -lnuma -ldl -lconfig ../deps/leveldb/build/libleveldb.a $(BENCH_LIB) -lgflags -lsnappy -lz -llz4
 WRAP_FLAGS = -Wl,-wrap,malloc -Wl,-wrap=malloc -Wl,-wrap=free -Wl,-wrap=calloc -Wl,-wrap=realloc 
 
 ifneq ($(DEBUG),)
@@ -89,7 +96,7 @@ DPDK_LIBS+=$(DPDK)/build/lib/librte_mempool.a
 DPDK_LIBS+=$(DPDK)/build/lib/librte_ring.a
 
 shinjuku: $(DEPENDENCY) $(OBJS) $(DUNE_LIB) ix.ld
-	$(LD) $(WRAP_FLAGS) $(LDFLAGS) -o shinjuku $(OBJS) -rdynamic $(DUNE_LIB)  $(DPDK_LIBS) $(LDLIBS)
+	$(LD) $(WRAP_FLAGS) $(LDFLAGS) -o shinjuku $(OBJS) -rdynamic $(DUNE_LIB)  $(DPDK_LIBS) $(LDLIBS) $(CONCORD_LIB)
 
 clean:
 	cp core/context_fast.S /tmp/context_fast.S
