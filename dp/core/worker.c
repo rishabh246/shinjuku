@@ -62,10 +62,12 @@
 #include "benchmark.h"
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "looplib.h"
 #include "concord.h"
+#include "concord-leveldb.h"
 
 bool PREEMPT_NOW = false;
+
+extern int concord_preempt_now;
 
 // ---- Added for tests ----
 extern uint64_t TEST_TOTAL_PACKETS_COUNTER;
@@ -173,7 +175,8 @@ static void test_handler(struct dune_tf *tf)
 
 void concord_func()
 {
-    asm volatile("nop");
+    concord_preempt_now = 0;
+    swapcontext_very_fast(cont, &uctx_main);
 }
 
 /**
@@ -392,14 +395,15 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
 
     case (DB_GET):
     {
-        char *db_err = NULL;
-        int read_len;
+        simpleloop(100);
+        // char *db_err = NULL;
+        // int read_len;
 
-        PRE_PROTECTCALL;
-        char *returned_value = leveldb_get(db, roptions,
-                                "key1", 4,
-                                &read_len, &db_err);
-        POST_PROTECTCALL;
+        // PRE_PROTECTCALL;
+        // char *returned_value = leveldb_get(db, roptions,
+        //                         "key1", 4,
+        //                         &read_len, &db_err);
+        // POST_PROTECTCALL;
 
 
         break;
@@ -421,8 +425,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     }
     case (DB_ITERATOR):
     {
-        libloop(100000);
-
+        simpleloop(10000000);
 
         break;
     }
