@@ -402,7 +402,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
 
     case (DB_GET):
     {
-        simpleloop(100);
+        simpleloop(62);
         // char *db_err = NULL;
         // int read_len;
 
@@ -432,7 +432,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     }
     case (DB_ITERATOR):
     {
-        simpleloop(10000000);
+        simpleloop(6200000);
 
         break;
     }
