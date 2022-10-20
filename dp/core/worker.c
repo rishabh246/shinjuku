@@ -97,7 +97,7 @@ uint64_t total_scheduled = 0;
 // uint64_t yields [1024 * 1024] = {0};
 // uint64_t yield_iterator = 0;
 
-// # define TIMESTAMP_CTR_LIMIT 1024
+// # define TIMESTAMP_CTR_LIMIT 100000
 // uint64_t before_timestamp[TIMESTAMP_CTR_LIMIT], after_timestamp[TIMESTAMP_CTR_LIMIT];
 // uint64_t timestamp_iterator = 0;
 
@@ -181,8 +181,6 @@ static void test_handler(struct dune_tf *tf)
 void concord_func()
 {
     concord_preempt_now = 0;
-    /* Turn on to debug time lost in waiting for new req */
-    //before_timestamp[timestamp_iterator] = get_ns();
     swapcontext_very_fast(cont, &uctx_main);
 }
 
@@ -515,6 +513,8 @@ static inline void handle_fake_new_packet(void)
         log_err("Failed to do swap into new context\n");
         exit(-1);
     }
+    /* Turn on to debug time lost in waiting for new req */
+    // before_timestamp[timestamp_iterator] = get_ns();
 }
 
 static inline void handle_context(void)
@@ -529,6 +529,8 @@ static inline void handle_context(void)
         log_err("Failed to swap to existing context\n");
         exit(-1);
     }
+    /* Turn on to debug time lost in waiting for new req */
+    // before_timestamp[timestamp_iterator] = get_ns();
 }
 
 static inline void handle_request(void)
@@ -549,17 +551,15 @@ static inline void handle_fake_request(void)
     while (dispatcher_requests[cpu_nr_].flag == WAITING)
         ;
     /* Turn on to debug time lost in waiting for new req */
-    /*
-    if(likely(IS_FIRST_PACKET)){
-        after_timestamp[timestamp_iterator++] = get_ns();
-    }
-    if(timestamp_iterator == TIMESTAMP_CTR_LIMIT){
-        for(int i =0; i < TIMESTAMP_CTR_LIMIT; i++){
-            log_info("Lost time:%lld\n", after_timestamp[i]-before_timestamp[i]);
-        }
-        timestamp_iterator = 0;
-    }
-    */
+    // if(likely(IS_FIRST_PACKET)){
+    //     after_timestamp[timestamp_iterator++] = get_ns();
+    // }
+    // if(timestamp_iterator == TIMESTAMP_CTR_LIMIT){
+    //     for(int i =0; i < TIMESTAMP_CTR_LIMIT; i++){
+    //         log_info("Lost time:%lld\n", after_timestamp[i]-before_timestamp[i]);
+    //     }
+    //     timestamp_iterator = 0;
+    // }
     dispatcher_requests[cpu_nr_].flag = WAITING;
     if (dispatcher_requests[cpu_nr_].category == PACKET)
     {
