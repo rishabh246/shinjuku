@@ -58,6 +58,7 @@ extern void yield_handler(void);
 
 #define PREEMPT_VECTOR 0xf2
 #define PREEMPTION_DELAY 5000
+#define CPU_FREQ_GHZ 3.3
 
 extern int concord_preempt_now;
 
@@ -125,7 +126,7 @@ static inline void dispatch_request(int i, uint64_t cur_time)
 
 static inline void preempt_worker(int i, uint64_t cur_time)
 {
-	if (preempt_check[i] && (((cur_time - timestamps[i]) / 2.5) > PREEMPTION_DELAY))
+	if (preempt_check[i] && (((cur_time - timestamps[i]) / CPU_FREQ_GHZ) > PREEMPTION_DELAY))
 	{
 		// Avoid preempting more times.
 		preempt_check[i] = false;
@@ -135,7 +136,7 @@ static inline void preempt_worker(int i, uint64_t cur_time)
 
 static inline void concord_preempt_worker(int i, uint64_t cur_time)
 {
-	if (preempt_check[i] && (((cur_time - timestamps[i]) / 2.5) > PREEMPTION_DELAY))
+	if (preempt_check[i] && (((cur_time - timestamps[i]) / CPU_FREQ_GHZ) > PREEMPTION_DELAY))
 	{
 		// Avoid preempting more times.
 		concord_preempt_now = 1;
