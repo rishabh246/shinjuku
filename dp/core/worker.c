@@ -94,8 +94,13 @@ uint64_t total_scheduled = 0;
 // uint64_t posted_interrupts[1024 * 1024] = {0};
 // uint64_t interrupt_iterator = 0;
 
-// uint64_t yeilds [1024 * 1024] = {0};
+// uint64_t yields [1024 * 1024] = {0};
 // uint64_t yield_iterator = 0;
+
+// # define TIMESTAMP_CTR_LIMIT 1024
+// uint64_t before_timestamp[TIMESTAMP_CTR_LIMIT], after_timestamp[TIMESTAMP_CTR_LIMIT];
+// uint64_t timestamp_iterator = 0;
+
 
 __thread ucontext_t uctx_main;
 __thread ucontext_t *cont;
@@ -176,6 +181,8 @@ static void test_handler(struct dune_tf *tf)
 void concord_func()
 {
     concord_preempt_now = 0;
+    /* Turn on to debug time lost in waiting for new req */
+    //before_timestamp[timestamp_iterator] = get_ns();
     swapcontext_very_fast(cont, &uctx_main);
 }
 
@@ -541,6 +548,18 @@ static inline void handle_fake_request(void)
 {
     while (dispatcher_requests[cpu_nr_].flag == WAITING)
         ;
+    /* Turn on to debug time lost in waiting for new req */
+    /*
+    if(likely(IS_FIRST_PACKET)){
+        after_timestamp[timestamp_iterator++] = get_ns();
+    }
+    if(timestamp_iterator == TIMESTAMP_CTR_LIMIT){
+        for(int i =0; i < TIMESTAMP_CTR_LIMIT; i++){
+            log_info("Lost time:%lld\n", after_timestamp[i]-before_timestamp[i]);
+        }
+        timestamp_iterator = 0;
+    }
+    */
     dispatcher_requests[cpu_nr_].flag = WAITING;
     if (dispatcher_requests[cpu_nr_].category == PACKET)
     {
