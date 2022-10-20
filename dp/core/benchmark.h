@@ -13,7 +13,7 @@
 #define BENCHMARK_TYPE       	        1
 #define BENCHMARK_STOP_AT_PACKET      100
 #define BENCHMARK_STOP_AT_NS        1000000 * 20 
-#define SCHEDULE_METHOD          METHOD_PI
+#define SCHEDULE_METHOD          METHOD_CONCORD
 #define DB_NO_KEY                   100000
 
 

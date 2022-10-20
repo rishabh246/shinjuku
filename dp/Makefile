@@ -30,7 +30,7 @@ CONCORD_ROOT = $(ROOT_DIR)/../..
 CONCORD_LIB = $(CONCORD_ROOT)/src/lib/concord.a
 CONCORD_INC = $(CONCORD_ROOT)/src/lib
 
-BENCH_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/lib/concord_apileveldb_clear.a
+BENCH_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/lib/concord_apileveldb.a
 BENCH_INC = $(CONCORD_ROOT)/benchmarks/leveldb/lib
 
 # ================================
