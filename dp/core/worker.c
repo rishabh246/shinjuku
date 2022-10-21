@@ -97,10 +97,15 @@ uint64_t total_scheduled = 0;
 // uint64_t yields [1024 * 1024] = {0};
 // uint64_t yield_iterator = 0;
 
-// # define TIMESTAMP_CTR_LIMIT 100000
-// uint64_t before_timestamp[TIMESTAMP_CTR_LIMIT], after_timestamp[TIMESTAMP_CTR_LIMIT];
-// uint64_t timestamp_iterator = 0;
-
+/* Turn on to debug time lost in waiting for new req */
+# define TIMESTAMP_CTR_LIMIT 1000000
+// struct idle_timestamping {
+//     uint64_t after_ctx; // Timestamp immediately after ctx switch happened
+//     uint64_t after_response; // Timestamp immediately after worker writes to response
+//     uint64_t start_next_req; // Timestamp when worker starts processing the next job.
+// };
+// struct idle_timestamping idle_timestamps[TIMESTAMP_CTR_LIMIT];
+// uint64_t idle_timestamp_iterator = 0;
 
 __thread ucontext_t uctx_main;
 __thread ucontext_t *cont;
@@ -514,7 +519,7 @@ static inline void handle_fake_new_packet(void)
         exit(-1);
     }
     /* Turn on to debug time lost in waiting for new req */
-    // before_timestamp[timestamp_iterator] = get_ns();
+    // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
 }
 
 static inline void handle_context(void)
@@ -530,7 +535,7 @@ static inline void handle_context(void)
         exit(-1);
     }
     /* Turn on to debug time lost in waiting for new req */
-    // before_timestamp[timestamp_iterator] = get_ns();
+    // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
 }
 
 static inline void handle_request(void)
@@ -548,17 +553,21 @@ bool IS_FIRST_PACKET = false;
 
 static inline void handle_fake_request(void)
 {
-    while (dispatcher_requests[cpu_nr_].flag == WAITING)
-        ;
+    /* Turn on to debug time lost in waiting for new req */
+    // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
+    while (dispatcher_requests[cpu_nr_].flag == WAITING);
     /* Turn on to debug time lost in waiting for new req */
     // if(likely(IS_FIRST_PACKET)){
-    //     after_timestamp[timestamp_iterator++] = get_ns();
+    //     idle_timestamps[idle_timestamp_iterator++].start_next_req = get_ns();
     // }
-    // if(timestamp_iterator == TIMESTAMP_CTR_LIMIT){
+    // if(idle_timestamp_iterator == TIMESTAMP_CTR_LIMIT){
     //     for(int i =0; i < TIMESTAMP_CTR_LIMIT; i++){
-    //         log_info("Lost time:%lld\n", after_timestamp[i]-before_timestamp[i]);
+    //         log_info("Total time lost :%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_ctx);
+    //         log_info("Time spent sending response:%lld\n", idle_timestamps[i].after_response - idle_timestamps[i].after_ctx);
+    //         log_info("Time spent idling:%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_response);
+
     //     }
-    //     timestamp_iterator = 0;
+    //     idle_timestamp_iterator = 0;
     // }
     dispatcher_requests[cpu_nr_].flag = WAITING;
     if (dispatcher_requests[cpu_nr_].category == PACKET)
