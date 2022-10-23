@@ -78,13 +78,13 @@ static void preempt_check_init(int num_workers)
 
 static inline void handle_finished(int i)
 {
-	if (worker_responses[i].mbuf == NULL)
+	if (dispatcher_requests[i].mbuf == NULL)
 		log_warn("No mbuf was returned from worker\n");
 
-	context_free(worker_responses[i].rnbl);
-	mbuf_enqueue(&mqueue, (struct mbuf *)worker_responses[i].mbuf);
+	context_free(dispatcher_requests[i].rnbl);
+	mbuf_enqueue(&mqueue, (struct mbuf *)dispatcher_requests[i].mbuf);
 	preempt_check[i] = false;
-	worker_responses[i].flag = PROCESSED;
+	dispatcher_requests[i].flag = INACTIVE;
 }
 
 static inline void handle_preempted(int i)
@@ -93,14 +93,14 @@ static inline void handle_preempted(int i)
 	uint8_t type, category;
 	uint64_t timestamp, runned_for;
 
-	rnbl = worker_responses[i].rnbl;
-	mbuf = worker_responses[i].mbuf;
-	category = worker_responses[i].category;
-	type = worker_responses[i].type;
-	timestamp = worker_responses[i].timestamp;
+	rnbl = dispatcher_requests[i].rnbl;
+	mbuf = dispatcher_requests[i].mbuf;
+	category = dispatcher_requests[i].category;
+	type = dispatcher_requests[i].type;
+	timestamp = dispatcher_requests[i].timestamp;
 	tskq_enqueue_tail(&tskq[type], rnbl, mbuf, type, category, timestamp);
 	preempt_check[i] = false;
-	worker_responses[i].flag = PROCESSED;
+	dispatcher_requests[i].flag = INACTIVE;
 }
 
 static inline void dispatch_request(int i, uint64_t cur_time)
@@ -113,7 +113,6 @@ static inline void dispatch_request(int i, uint64_t cur_time)
 						   &category, &timestamp, cur_time))
 		return;
 
-	worker_responses[i].flag = RUNNING;
 	dispatcher_requests[i].rnbl = rnbl;
 	dispatcher_requests[i].mbuf = mbuf;
 	dispatcher_requests[i].type = type;
@@ -121,7 +120,7 @@ static inline void dispatch_request(int i, uint64_t cur_time)
 	dispatcher_requests[i].timestamp = timestamp;
 	timestamps[i] = cur_time;
 	preempt_check[i] = true;
-	dispatcher_requests[i].flag = ACTIVE;
+	dispatcher_requests[i].flag = READY;
 }
 
 static inline void preempt_worker(int i, uint64_t cur_time)
@@ -146,13 +145,13 @@ static inline void concord_preempt_worker(int i, uint64_t cur_time)
 
 static inline void handle_worker(int i, uint64_t cur_time)
 {
-	if (worker_responses[i].flag != RUNNING)
+	if (dispatcher_requests[i].flag != READY && dispatcher_requests[i].flag != RUNNING)
 	{
-		if (worker_responses[i].flag == FINISHED)
+		if (dispatcher_requests[i].flag == FINISHED)
 		{
 			handle_finished(i);
 		}
-		else if (worker_responses[i].flag == PREEMPTED)
+		else if (dispatcher_requests[i].flag == PREEMPTED)
 		{
 			handle_preempted(i);
 		}

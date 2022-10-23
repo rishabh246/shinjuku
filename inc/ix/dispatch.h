@@ -31,13 +31,12 @@
 
 #define MAX_WORKERS   18
 
-#define WAITING     0x00
-#define ACTIVE      0x01
+#define INACTIVE    0x00
+#define READY       0x01
 
-#define RUNNING     0x00
-#define FINISHED    0x01
-#define PREEMPTED   0x02
-#define PROCESSED   0x03
+#define RUNNING     0x02
+#define FINISHED    0x03
+#define PREEMPTED   0x04
 
 #define NOCONTENT   0x00
 #define PACKET      0x01
@@ -66,9 +65,9 @@ struct dispatcher_request
         uint64_t flag;
         void * rnbl;
         void * mbuf;
+        uint64_t timestamp;
         uint8_t type;
         uint8_t category;
-        uint64_t timestamp;
         char make_it_64_bytes[30];
 } __attribute__((packed, aligned(64)));
 
@@ -252,5 +251,5 @@ static inline int smart_tskq_dequeue(struct task_queue * tq, void ** rnbl_ptr,
 uint64_t timestamps[MAX_WORKERS];
 uint8_t preempt_check[MAX_WORKERS];
 volatile struct networker_pointers_t networker_pointers;
-volatile struct worker_response worker_responses[MAX_WORKERS];
+// volatile struct worker_response worker_responses[MAX_WORKERS];
 volatile struct dispatcher_request dispatcher_requests[MAX_WORKERS];

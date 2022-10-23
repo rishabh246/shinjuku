@@ -291,7 +291,7 @@ static inline void parse_packet(struct mbuf *pkt, void **data_ptr,
 static inline void init_worker(void)
 {
     cpu_nr_ = percpu_get(cpu_nr) - 2;
-    worker_responses[cpu_nr_].flag = PROCESSED;
+    dispatcher_requests[cpu_nr_].flag = INACTIVE;
 
     dune_register_intr_handler(PREEMPT_VECTOR, test_handler);
 
@@ -540,9 +540,8 @@ static inline void handle_context(void)
 
 static inline void handle_request(void)
 {
-    while (dispatcher_requests[cpu_nr_].flag == WAITING)
-        ;
-    dispatcher_requests[cpu_nr_].flag = WAITING;
+    while (dispatcher_requests[cpu_nr_].flag != READY);
+    dispatcher_requests[cpu_nr_].flag = RUNNING;
     if (dispatcher_requests[cpu_nr_].category == PACKET)
         handle_new_packet();
     else
@@ -555,7 +554,7 @@ static inline void handle_fake_request(void)
 {
     /* Turn on to debug time lost in waiting for new req */
     // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
-    while (dispatcher_requests[cpu_nr_].flag == WAITING);
+    while (dispatcher_requests[cpu_nr_].flag != READY);
     /* Turn on to debug time lost in waiting for new req */
     // if(likely(IS_FIRST_PACKET)){
     //     idle_timestamps[idle_timestamp_iterator++].start_next_req = get_ns();
@@ -569,7 +568,7 @@ static inline void handle_fake_request(void)
     //     }
     //     idle_timestamp_iterator = 0;
     // }
-    dispatcher_requests[cpu_nr_].flag = WAITING;
+    dispatcher_requests[cpu_nr_].flag = READY;
     if (dispatcher_requests[cpu_nr_].category == PACKET)
     {
         if (unlikely(!IS_FIRST_PACKET))
@@ -587,19 +586,16 @@ static inline void handle_fake_request(void)
 
 static inline void finish_request(void)
 {
-    worker_responses[cpu_nr_].timestamp = dispatcher_requests[cpu_nr_].timestamp;
-    worker_responses[cpu_nr_].type = dispatcher_requests[cpu_nr_].type;
-    worker_responses[cpu_nr_].mbuf = dispatcher_requests[cpu_nr_].mbuf;
-    worker_responses[cpu_nr_].rnbl = cont;
-    worker_responses[cpu_nr_].category = CONTEXT;
+    dispatcher_requests[cpu_nr_].rnbl = cont;
+    dispatcher_requests[cpu_nr_].category = CONTEXT;
 
     if (finished)
     {
-        worker_responses[cpu_nr_].flag = FINISHED;
+        dispatcher_requests[cpu_nr_].flag = FINISHED;
     }
     else
     {
-        worker_responses[cpu_nr_].flag = PREEMPTED;
+        dispatcher_requests[cpu_nr_].flag = PREEMPTED;
     }
 }
 
