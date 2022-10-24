@@ -94,11 +94,13 @@ uint64_t total_scheduled = 0;
 // uint64_t posted_interrupts[1024 * 1024] = {0};
 // uint64_t interrupt_iterator = 0;
 
+/* Turn on to benchmark timeliness of yields */
+// #define YIELD_CTR_LIMIT 500
 // uint64_t yields [1024 * 1024] = {0};
 // uint64_t yield_iterator = 0;
 
 /* Turn on to debug time lost in waiting for new req */
-# define TIMESTAMP_CTR_LIMIT 1000000
+// # define TIMESTAMP_CTR_LIMIT 1000000
 // struct idle_timestamping {
 //     uint64_t after_ctx; // Timestamp immediately after ctx switch happened
 //     uint64_t after_response; // Timestamp immediately after worker writes to response
@@ -177,8 +179,16 @@ static void test_handler(struct dune_tf *tf)
     #if SCHEDULE_METHOD == METHOD_YIELD
     log_err("Interrupt fired \n");
     #endif
-
     dune_apic_eoi();
+
+    /* Turn on to benchmark timeliness of yields */
+    // yields[yield_iterator++] = get_ns();
+    // if(unlikely(yield_iterator == YIELD_CTR_LIMIT)){
+    //     for(int i = 1; i < YIELD_CTR_LIMIT; i++){
+    //         printf("Epoch time %lld\n", yields[i]- yields[i-1]);
+    //     }
+    //     yield_iterator = 0;
+    // }
     
     swapcontext_fast_to_control(cont, &uctx_main);
 }
@@ -186,6 +196,16 @@ static void test_handler(struct dune_tf *tf)
 void concord_func()
 {
     concord_preempt_now = 0;
+
+    /* Turn on to benchmark timeliness of yields */
+    // yields[yield_iterator++] = get_ns();
+    // if(unlikely(yield_iterator == YIELD_CTR_LIMIT)){
+    //     for(int i = 1; i < YIELD_CTR_LIMIT; i++){
+    //         printf("Epoch time %lld\n", yields[i]- yields[i-1]);
+    //     }
+    //     yield_iterator = 0;
+    // }
+
     swapcontext_very_fast(cont, &uctx_main);
 }
 
