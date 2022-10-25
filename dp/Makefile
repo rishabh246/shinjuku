@@ -33,6 +33,8 @@ CONCORD_INC = $(CONCORD_ROOT)/src/lib
 BENCH_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/lib/concord_apileveldb.a
 BENCH_INC = $(CONCORD_ROOT)/benchmarks/leveldb/lib
 
+LEVELDB_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/leveldb/concord_libleveldb_clear.a
+
 # ================================
 
 
@@ -46,7 +48,7 @@ CC	= gcc
 CFLAGS= -g -Wall -fno-pie -fno-dwarf2-cfi-asm -fno-asynchronous-unwind-tables -O0 -mno-red-zone $(INC) -D__KERNEL__ -DFAKE_WORK $(EXTRA_CFLAGS)
 LD	= g++
 LDFLAGS	= -T ix.ld -no-pie
-LDLIBS	= -lrt  -lpthread -lm -lnuma -ldl -lconfig ../deps/leveldb/build/libleveldb.a $(BENCH_LIB) -lgflags -lsnappy -lz -llz4
+LDLIBS	= -lrt  -lpthread -lm -lnuma -ldl -lconfig $(LEVELDB_LIB) $(BENCH_LIB) -lgflags -lsnappy -lz -llz4
 WRAP_FLAGS = -Wl,-wrap,malloc -Wl,-wrap=malloc -Wl,-wrap=free -Wl,-wrap=calloc -Wl,-wrap=realloc 
 
 ifneq ($(DEBUG),)
