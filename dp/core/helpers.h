@@ -28,3 +28,12 @@ static inline uint64_t get_ns()
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return ts.tv_nsec;
 }
+
+static inline void nsleep(uint64_t ns)
+{
+	int start = get_ns();
+	while (get_ns() - start < ns){
+		asm volatile("nop");
+		asm volatile("nop");
+	}
+}
