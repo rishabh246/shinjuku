@@ -100,7 +100,7 @@ uint64_t total_scheduled = 0;
 // uint64_t yield_iterator = 0;
 
 /* Turn on to debug time lost in waiting for new req */
-// # define TIMESTAMP_CTR_LIMIT 1000000
+# define TIMESTAMP_CTR_LIMIT 500
 // struct idle_timestamping {
 //     uint64_t after_ctx; // Timestamp immediately after ctx switch happened
 //     uint64_t after_response; // Timestamp immediately after worker writes to response
@@ -581,12 +581,13 @@ static inline void handle_fake_request(void)
     //     idle_timestamps[idle_timestamp_iterator++].start_next_req = get_ns();
     // }
     // if(idle_timestamp_iterator == TIMESTAMP_CTR_LIMIT){
-    //     for(int i =0; i < TIMESTAMP_CTR_LIMIT; i++){
+    //     for(int i =1; i < TIMESTAMP_CTR_LIMIT; i++){
     //         log_info("Total time lost :%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_ctx);
     //         log_info("Time spent sending response:%lld\n", idle_timestamps[i].after_response - idle_timestamps[i].after_ctx);
     //         log_info("Time spent idling:%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_response);
-
+    //         log_info("Time spent doing useful work: %lld\n", idle_timestamps[i].after_ctx - idle_timestamps[i-1].start_next_req);
     //     }
+    //     exit(0);
     //     idle_timestamp_iterator = 0;
     // }
     dispatcher_requests[cpu_nr_].flag = WAITING;
