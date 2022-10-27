@@ -90,24 +90,38 @@ extern leveldb_writeoptions_t *woptions;
 uint64_t JOB_STARTED_AT = 0;
 uint64_t total_scheduled = 0;
 
-// For debugging purposes
-// uint64_t posted_interrupts[1024 * 1024] = {0};
-// uint64_t interrupt_iterator = 0;
-
-/* Turn on to benchmark timeliness of yields */
-// #define YIELD_CTR_LIMIT 500
-// uint64_t yields [1024 * 1024] = {0};
-// uint64_t yield_iterator = 0;
+/* Turn on to benchmark timeliness/number of yields */
+#define ITERATOR_LIMIT 1
+uint64_t yields [ITERATOR_LIMIT] = {0};
+uint64_t yield_iterator = 0;
 
 /* Turn on to debug time lost in waiting for new req */
-// # define TIMESTAMP_CTR_LIMIT 1000000
-// struct idle_timestamping {
-//     uint64_t after_ctx; // Timestamp immediately after ctx switch happened
-//     uint64_t after_response; // Timestamp immediately after worker writes to response
-//     uint64_t start_next_req; // Timestamp when worker starts processing the next job.
-// };
-// struct idle_timestamping idle_timestamps[TIMESTAMP_CTR_LIMIT];
-// uint64_t idle_timestamp_iterator = 0;
+struct idle_timestamping {
+    uint64_t after_ctx; // Timestamp immediately after ctx switch happened
+    uint64_t after_response; // Timestamp immediately after worker writes to response
+    uint64_t start_req; // Timestamp when worker starts processing the next job.
+};
+struct idle_timestamping idle_timestamps[ITERATOR_LIMIT];
+uint64_t idle_timestamp_iterator = 0, useful = 0, lost = 0;
+
+void print_stats(void){
+    /* Yield stats */
+    for(int i = 1; i < yield_iterator; i++){
+        log_info("Epoch time: %lld\n", yields[i]- yields[i-1]);
+    }
+    log_info("Total number of yields: %llu\n", yield_iterator);
+        
+    /* Idle time stats */
+    for(int i =1; i < idle_timestamp_iterator; i++){
+        uint64_t time_lost = idle_timestamps[i].start_req - idle_timestamps[i].after_ctx;
+        log_info("Total time lost :%llu\n", time_lost);
+        log_info("Time spent sending response:%llu\n", idle_timestamps[i].after_response - idle_timestamps[i].after_ctx);
+        log_info("Time spent idling:%llu\n", idle_timestamps[i].start_req - idle_timestamps[i].after_response);
+        uint64_t useful_work = idle_timestamps[i].after_ctx - idle_timestamps[i-1].start_req;
+        log_info("Total time spent doing useful work: %lld\n", useful_work);
+    }
+    log_info("Time breakdown: Useful: %llu Lost: %llu\n", useful, lost);
+}
 
 __thread ucontext_t uctx_main;
 __thread ucontext_t *cont;
@@ -182,14 +196,9 @@ static void test_handler(struct dune_tf *tf)
     dune_apic_eoi();
 
     /* Turn on to benchmark timeliness of yields */
-    // yields[yield_iterator++] = get_ns();
-    // if(unlikely(yield_iterator == YIELD_CTR_LIMIT)){
-    //     for(int i = 1; i < YIELD_CTR_LIMIT; i++){
-    //         printf("Epoch time %lld\n", yields[i]- yields[i-1]);
-    //     }
-    //     yield_iterator = 0;
-    // }
-    
+    // yields[yield_iterator] = get_ns();
+    // yield_iterator = (yield_iterator+1) & (ITERATOR_LIMIT-1); 
+
     swapcontext_fast_to_control(cont, &uctx_main);
 }
 
@@ -198,13 +207,8 @@ void concord_func()
     concord_preempt_now = 0;
 
     /* Turn on to benchmark timeliness of yields */
-    // yields[yield_iterator++] = get_ns();
-    // if(unlikely(yield_iterator == YIELD_CTR_LIMIT)){
-    //     for(int i = 1; i < YIELD_CTR_LIMIT; i++){
-    //         printf("Epoch time %lld\n", yields[i]- yields[i-1]);
-    //     }
-    //     yield_iterator = 0;
-    // }
+    // yields[yield_iterator] = get_ns();
+    // yield_iterator = (yield_iterator+1) & (ITERATOR_LIMIT-1);
 
     swapcontext_very_fast(cont, &uctx_main);
 }
@@ -490,6 +494,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     {
         TEST_END_TIME = get_us();
         TEST_FINISHED = true;
+        print_stats();
     }
 
     if (type == DB_GET || type == DB_PUT){
@@ -540,6 +545,9 @@ static inline void handle_fake_new_packet(void)
     }
     /* Turn on to debug time lost in waiting for new req */
     // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
+    // uint64_t useful_work = idle_timestamps[idle_timestamp_iterator].after_ctx - idle_timestamps[idle_timestamp_iterator].start_req;
+    // if( useful_work < 7000)
+    //     useful+= useful_work;
 }
 
 static inline void handle_context(void)
@@ -556,12 +564,14 @@ static inline void handle_context(void)
     }
     /* Turn on to debug time lost in waiting for new req */
     // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
+    // uint64_t useful_work = idle_timestamps[idle_timestamp_iterator].after_ctx - idle_timestamps[idle_timestamp_iterator].start_req;
+    // if( useful_work < 7000)
+    //     useful+= useful_work;
 }
 
 static inline void handle_request(void)
 {
-    while (dispatcher_requests[cpu_nr_].flag == WAITING)
-        ;
+    while (dispatcher_requests[cpu_nr_].flag == WAITING);
     dispatcher_requests[cpu_nr_].flag = WAITING;
     if (dispatcher_requests[cpu_nr_].category == PACKET)
         handle_new_packet();
@@ -575,20 +585,21 @@ static inline void handle_fake_request(void)
 {
     /* Turn on to debug time lost in waiting for new req */
     // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
-    while (dispatcher_requests[cpu_nr_].flag == WAITING);
-    /* Turn on to debug time lost in waiting for new req */
-    // if(likely(IS_FIRST_PACKET)){
-    //     idle_timestamps[idle_timestamp_iterator++].start_next_req = get_ns();
-    // }
-    // if(idle_timestamp_iterator == TIMESTAMP_CTR_LIMIT){
-    //     for(int i =0; i < TIMESTAMP_CTR_LIMIT; i++){
-    //         log_info("Total time lost :%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_ctx);
-    //         log_info("Time spent sending response:%lld\n", idle_timestamps[i].after_response - idle_timestamps[i].after_ctx);
-    //         log_info("Time spent idling:%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_response);
 
-    //     }
-    //     idle_timestamp_iterator = 0;
+    while (dispatcher_requests[cpu_nr_].flag == WAITING);
+
+    /* Turn on to debug time lost in waiting for new req */
+    // uint64_t cur_time = get_ns();
+    // idle_timestamps[idle_timestamp_iterator].start_req = cur_time;
+
+    // if(likely(IS_FIRST_PACKET){
+        // uint64_t lost_time = cur_time - idle_timestamps[idle_timestamp_iterator].after_ctx;
+        // if(lost_time <= 700)
+        //     lost += lost_time; 
+        // idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1);    
     // }
+    
+
     dispatcher_requests[cpu_nr_].flag = WAITING;
     if (dispatcher_requests[cpu_nr_].category == PACKET)
     {
