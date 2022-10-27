@@ -50,6 +50,11 @@ struct mempool task_mempool __attribute((aligned(64)));
 struct mempool_datastore mcell_datastore;
 struct mempool mcell_mempool __attribute((aligned(64)));
 
+#define JBSQ_LEN    0x02
+static inline jbsq_get_next(uint8_t iter){
+        return iter^1; // This is for JBSQ_LEN = 2
+}
+
 struct worker_response
 {
         uint64_t flag;
@@ -61,6 +66,10 @@ struct worker_response
         char make_it_64_bytes[30];
 } __attribute__((packed, aligned(64)));
 
+struct jbsq_worker_response {
+        struct worker_response responses[JBSQ_LEN];
+}__attribute__((packed, aligned(64)));
+
 struct dispatcher_request
 {
         uint64_t flag;
@@ -71,6 +80,16 @@ struct dispatcher_request
         uint64_t timestamp;
         char make_it_64_bytes[30];
 } __attribute__((packed, aligned(64)));
+
+struct jbsq_dispatcher_request {
+        struct dispatcher_request requests[JBSQ_LEN];
+}__attribute__((packed, aligned(64)));
+
+struct jbsq_preemption {
+        uint64_t timestamp;
+        uint8_t check;
+        char make_it_64_bytes[55]; 
+};__attribute__((packed, aligned(64)));
 
 struct networker_pointers_t
 {
@@ -249,8 +268,7 @@ static inline int smart_tskq_dequeue(struct task_queue * tq, void ** rnbl_ptr,
         return -1;
 }
 
-uint64_t timestamps[MAX_WORKERS];
-uint8_t preempt_check[MAX_WORKERS];
+volatile struct jbsq_preemption preempt_check[MAX_WORKERS];
 volatile struct networker_pointers_t networker_pointers;
-volatile struct worker_response worker_responses[MAX_WORKERS];
-volatile struct dispatcher_request dispatcher_requests[MAX_WORKERS];
+volatile struct jbsq_worker_response worker_responses[MAX_WORKERS];
+volatile struct jbsq_dispatcher_request dispatcher_requests[MAX_WORKERS];
