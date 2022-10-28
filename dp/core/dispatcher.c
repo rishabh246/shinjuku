@@ -145,6 +145,13 @@ static inline void concord_preempt_worker(uint8_t i, uint64_t cur_time)
 
 static inline void handle_worker(uint8_t active_req, uint8_t i, uint64_t cur_time)
 {
+	#if (SCHEDULE_METHOD == METHOD_PI)
+	preempt_worker(i, cur_time);
+	#endif
+	#if (SCHEDULE_METHOD == METHOD_CONCORD)
+	concord_preempt_worker(i, cur_time);
+	#endif
+
 	if (worker_responses[i].responses[active_req].flag != RUNNING)
 	{
 		if (worker_responses[i].responses[active_req].flag == FINISHED)
@@ -157,13 +164,6 @@ static inline void handle_worker(uint8_t active_req, uint8_t i, uint64_t cur_tim
 		}
 		dispatch_request(i, active_req, cur_time);
 	} 
-
-	#if SCHEDULE_METHOD == METHOD_PI
-	preempt_worker(i, cur_time);
-	#endif
-	#if (SCHEDULE_METHOD == METHOD_CONCORD)
-	concord_preempt_worker(i, cur_time);
-	#endif
 }
 
 static inline void handle_networker(uint64_t cur_time)
@@ -237,8 +237,8 @@ void do_dispatching(int num_cpus)
 			for (j = 0; j < num_cpus - 2; j++){
 				handle_worker(i, j, cur_time);
 			}
+			handle_networker(cur_time);
 		}
 		
-		handle_networker(cur_time);
 	}
 }
