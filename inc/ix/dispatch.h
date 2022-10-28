@@ -31,8 +31,9 @@
 
 #define MAX_WORKERS   18
 
-#define WAITING     0x00
-#define ACTIVE      0x01
+#define INACTIVE    0x00
+#define READY       0x01
+#define DONE        0x02 
 
 #define RUNNING     0x00
 #define FINISHED    0x01

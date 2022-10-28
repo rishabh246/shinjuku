@@ -575,8 +575,7 @@ static inline void handle_context(void)
 
 static inline void handle_request(void)
 {
-    while (dispatcher_requests[cpu_nr_].requests[active_req].flag == WAITING);
-    dispatcher_requests[cpu_nr_].requests[active_req].flag = WAITING;
+    while (dispatcher_requests[cpu_nr_].requests[active_req].flag != READY);
     preempt_check[cpu_nr_].timestamp = rdtsc();
     preempt_check[cpu_nr_].check = true;
     if (dispatcher_requests[cpu_nr_].requests[active_req].category == PACKET)
@@ -592,7 +591,7 @@ static inline void handle_fake_request(void)
     /* Turn on to debug time lost in waiting for new req */
     // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
 
-    while (dispatcher_requests[cpu_nr_].requests[active_req].flag == WAITING);
+    while (dispatcher_requests[cpu_nr_].requests[active_req].flag != READY);
 
     /* Turn on to debug time lost in waiting for new req */
     // uint64_t cur_time = get_ns();
@@ -605,7 +604,6 @@ static inline void handle_fake_request(void)
         // idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1);    
     // }
     
-    dispatcher_requests[cpu_nr_].requests[active_req].flag = WAITING;
     preempt_check[cpu_nr_].timestamp = rdtsc();
     preempt_check[cpu_nr_].check = true;
     if (dispatcher_requests[cpu_nr_].requests[active_req].category == PACKET)
@@ -622,7 +620,6 @@ static inline void handle_fake_request(void)
         handle_context();
     }
     preempt_check[cpu_nr_].check = false;
-
 }
 
 static inline void finish_request(void)
@@ -632,7 +629,6 @@ static inline void finish_request(void)
     worker_responses[cpu_nr_].responses[active_req].mbuf = dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
     worker_responses[cpu_nr_].responses[active_req].rnbl = cont;
     worker_responses[cpu_nr_].responses[active_req].category = CONTEXT;
-
     if (finished)
     {
         worker_responses[cpu_nr_].responses[active_req].flag = FINISHED;
@@ -641,6 +637,7 @@ static inline void finish_request(void)
     {
         worker_responses[cpu_nr_].responses[active_req].flag = PREEMPTED;
     }
+    dispatcher_requests[cpu_nr_].requests[active_req].flag = DONE;
 }
 
 void do_work(void)

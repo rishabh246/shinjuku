@@ -75,7 +75,7 @@ static void requests_init(int num_workers) {
 	int i;
 	for (i=0; i < num_workers; i++){
 		for(uint8_t j = 0; j < JBSQ_LEN; j++)
-		dispatcher_requests[i].requests[j].flag = WAITING;
+		dispatcher_requests[i].requests[j].flag = INACTIVE;
 	}
 }
 
@@ -114,13 +114,12 @@ static inline void dispatch_request(uint8_t i, uint8_t active_req, uint64_t cur_
 						   &category, &timestamp, cur_time))
 		return;
 
-	worker_responses[i].responses[active_req].flag = RUNNING;
 	dispatcher_requests[i].requests[active_req].rnbl = rnbl;
 	dispatcher_requests[i].requests[active_req].mbuf = mbuf;
 	dispatcher_requests[i].requests[active_req].type = type;
 	dispatcher_requests[i].requests[active_req].category = category;
 	dispatcher_requests[i].requests[active_req].timestamp = timestamp;
-	dispatcher_requests[i].requests[active_req].flag = ACTIVE;
+	dispatcher_requests[i].requests[active_req].flag = READY;
 }
 
 static inline void preempt_worker(uint8_t i, uint64_t cur_time)
@@ -152,7 +151,7 @@ static inline void handle_worker(uint8_t active_req, uint8_t i, uint64_t cur_tim
 	concord_preempt_worker(i, cur_time);
 	#endif
 
-	if (worker_responses[i].responses[active_req].flag != RUNNING)
+	if (dispatcher_requests[i].requests[active_req].flag != READY)
 	{
 		if (worker_responses[i].responses[active_req].flag == FINISHED)
 		{
