@@ -140,11 +140,6 @@ static inline void concord_preempt_worker(int i, uint64_t cur_time)
 {
 	if (preempt_check[i] && (((cur_time - timestamps[i]) / CPU_FREQ_GHZ) > PREEMPTION_DELAY))
 	{
-		if(concord_lock_counter != 0)
-		{
-			asm volatile("nop");
-			return;
-		}
 
 		// Avoid preempting more times.
 		concord_preempt_now = 1;

@@ -196,18 +196,14 @@ static void test_handler(struct dune_tf *tf)
 void concord_func()
 {
     // printf("Concord func called from tid %d\n", gettid());
-    if(worker_tid != gettid() || concord_lock_counter != 0)
+    
+    if(concord_lock_counter != 0)
     {
         return;
     }
-
-    // printf("preempted from tid %p\n", __builtin_return_address(0));
-
     concord_preempt_now = 0;
-
-    // print __builtin_return_address
-    // printf("return address: %p\n", __builtin_return_address(0));
-
+   
+    // yields[yield_iterator++] = get_ns();
 
     // if(unlikely(yield_iterator == 100))
     // {
@@ -217,6 +213,11 @@ void concord_func()
     //     }
     //     yield_iterator = 0;
     // }
+
+    // simpleloop(5);
+    // preempt_check[0] = 1;
+    // timestamps[0] = rdtsc();
+
 
     swapcontext_very_fast(cont, &uctx_main);
 }
