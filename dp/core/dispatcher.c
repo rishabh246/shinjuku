@@ -38,6 +38,7 @@
 
 #include "helpers.h"
 #include "benchmark.h"
+#include <stdatomic.h>
 
 // ---- Added for tests ----
 extern uint64_t total_scheduled;
@@ -61,6 +62,7 @@ extern void yield_handler(void);
 #define CPU_FREQ_GHZ 3.3
 
 extern int concord_preempt_now;
+extern int concord_lock_counter;
 
 static void timestamp_init(int num_workers)
 {
@@ -138,6 +140,12 @@ static inline void concord_preempt_worker(int i, uint64_t cur_time)
 {
 	if (preempt_check[i] && (((cur_time - timestamps[i]) / CPU_FREQ_GHZ) > PREEMPTION_DELAY))
 	{
+		if(concord_lock_counter != 0)
+		{
+			asm volatile("nop");
+			return;
+		}
+
 		// Avoid preempting more times.
 		concord_preempt_now = 1;
 		preempt_check[i] = false;

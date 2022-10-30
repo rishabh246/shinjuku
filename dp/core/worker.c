@@ -65,9 +65,17 @@
 #include "concord.h"
 #include "concord-leveldb.h"
 
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
+#define gettid() ((pid_t)syscall(SYS_gettid))
+
+
 bool PREEMPT_NOW = false;
 
 extern int concord_preempt_now;
+extern int concord_lock_counter;
 
 // ---- Added for tests ----
 extern uint64_t TEST_TOTAL_PACKETS_COUNTER;
@@ -94,13 +102,18 @@ uint64_t total_scheduled = 0;
 // uint64_t posted_interrupts[1024 * 1024] = {0};
 // uint64_t interrupt_iterator = 0;
 
-// uint64_t yields [1024 * 1024] = {0};
-// uint64_t yield_iterator = 0;
+uint64_t yields [1024 * 1024] = {0};
+uint64_t yield_iterator = 0;
 
-// # define TIMESTAMP_CTR_LIMIT 100000
-// uint64_t before_timestamp[TIMESTAMP_CTR_LIMIT], after_timestamp[TIMESTAMP_CTR_LIMIT];
-// uint64_t timestamp_iterator = 0;
-
+/* Turn on to debug time lost in waiting for new req */
+# define TIMESTAMP_CTR_LIMIT 1000000
+// struct idle_timestamping {
+//     uint64_t after_ctx; // Timestamp immediately after ctx switch happened
+//     uint64_t after_response; // Timestamp immediately after worker writes to response
+//     uint64_t start_next_req; // Timestamp when worker starts processing the next job.
+// };
+// struct idle_timestamping idle_timestamps[TIMESTAMP_CTR_LIMIT];
+// uint64_t idle_timestamp_iterator = 0;
 
 __thread ucontext_t uctx_main;
 __thread ucontext_t *cont;
@@ -119,6 +132,8 @@ extern int swapcontext_very_fast(ucontext_t *ouctx, ucontext_t *uctx);
 
 extern void dune_apic_eoi();
 extern int dune_register_intr_handler(int vector, dune_intr_cb cb);
+
+pid_t worker_tid;
 
 struct response
 {
@@ -180,7 +195,29 @@ static void test_handler(struct dune_tf *tf)
 
 void concord_func()
 {
+    // printf("Concord func called from tid %d\n", gettid());
+    if(worker_tid != gettid() || concord_lock_counter != 0)
+    {
+        return;
+    }
+
+    // printf("preempted from tid %p\n", __builtin_return_address(0));
+
     concord_preempt_now = 0;
+
+    // print __builtin_return_address
+    // printf("return address: %p\n", __builtin_return_address(0));
+
+
+    // if(unlikely(yield_iterator == 100))
+    // {
+    //     for (int i =1; i < 100; i++)
+    //     {
+    //         printf("Epoch %lld\n", yields[i] - yields[i-1]); 
+    //     }
+    //     yield_iterator = 0;
+    // }
+
     swapcontext_very_fast(cont, &uctx_main);
 }
 
@@ -430,7 +467,8 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     }
     case (DB_ITERATOR):
     {
-        simpleloop(6200000);
+        cncrd_leveldb_scan(db,roptions, 'musa');
+        // simpleloop(6200000);
 
         break;
     }
@@ -514,7 +552,7 @@ static inline void handle_fake_new_packet(void)
         exit(-1);
     }
     /* Turn on to debug time lost in waiting for new req */
-    // before_timestamp[timestamp_iterator] = get_ns();
+    // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
 }
 
 static inline void handle_context(void)
@@ -530,7 +568,7 @@ static inline void handle_context(void)
         exit(-1);
     }
     /* Turn on to debug time lost in waiting for new req */
-    // before_timestamp[timestamp_iterator] = get_ns();
+    // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
 }
 
 static inline void handle_request(void)
@@ -548,17 +586,21 @@ bool IS_FIRST_PACKET = false;
 
 static inline void handle_fake_request(void)
 {
-    while (dispatcher_requests[cpu_nr_].flag == WAITING)
-        ;
+    /* Turn on to debug time lost in waiting for new req */
+    // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
+    while (dispatcher_requests[cpu_nr_].flag == WAITING);
     /* Turn on to debug time lost in waiting for new req */
     // if(likely(IS_FIRST_PACKET)){
-    //     after_timestamp[timestamp_iterator++] = get_ns();
+    //     idle_timestamps[idle_timestamp_iterator++].start_next_req = get_ns();
     // }
-    // if(timestamp_iterator == TIMESTAMP_CTR_LIMIT){
+    // if(idle_timestamp_iterator == TIMESTAMP_CTR_LIMIT){
     //     for(int i =0; i < TIMESTAMP_CTR_LIMIT; i++){
-    //         log_info("Lost time:%lld\n", after_timestamp[i]-before_timestamp[i]);
+    //         log_info("Total time lost :%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_ctx);
+    //         log_info("Time spent sending response:%lld\n", idle_timestamps[i].after_response - idle_timestamps[i].after_ctx);
+    //         log_info("Time spent idling:%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_response);
+
     //     }
-    //     timestamp_iterator = 0;
+    //     idle_timestamp_iterator = 0;
     // }
     dispatcher_requests[cpu_nr_].flag = WAITING;
     if (dispatcher_requests[cpu_nr_].category == PACKET)
@@ -602,6 +644,10 @@ void do_work(void)
     // sure about vdso
     for (size_t i = 0; i < 50; i++)
         get_ns();
+
+    worker_tid = gettid();
+
+    printf("Worker %d started with tid %d\n", cpu_nr_, worker_tid);
 
     while (true)
     {
