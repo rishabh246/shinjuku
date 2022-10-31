@@ -33,7 +33,7 @@ CONCORD_INC = $(CONCORD_ROOT)/src/lib
 BENCH_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/lib/concord_apileveldb.a
 BENCH_INC = $(CONCORD_ROOT)/benchmarks/leveldb/lib
 
-LEVELDB_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/leveldb/concord_libleveldb_clear.a
+LEVELDB_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/leveldb/concord_libleveldb.a
 
 # ================================
 
