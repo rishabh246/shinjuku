@@ -91,7 +91,7 @@ uint64_t JOB_STARTED_AT = 0;
 uint64_t total_scheduled = 0;
 
 /* Turn on to debug time lost in waiting for new req. ITERATOR_LIMIT must be power of 2*/
-#define ITERATOR_LIMIT 16384
+#define ITERATOR_LIMIT 1
 
 struct idle_timestamping {
     uint64_t start_req; // Timestamp when worker starts processing the job.
@@ -100,28 +100,26 @@ struct idle_timestamping {
     uint64_t after_response; // Timestamp immediately after worker writes to response
 };
 struct idle_timestamping idle_timestamps[ITERATOR_LIMIT] = {0};
-uint64_t idle_timestamp_iterator = -1;
+uint64_t idle_timestamp_iterator = 0;
 
 void print_stats(void){
     /* Idle time stats */
     uint64_t num_yields = 0;
-    for(int i =0; i < idle_timestamp_iterator-1; i++){
+    for(int i =0; i < (int)idle_timestamp_iterator-1; i++){
         if(idle_timestamps[i].before_ctx){
-            log_info("%llu, %llu, %llu, %llu \n", idle_timestamps[i].start_req, idle_timestamps[i].before_ctx, idle_timestamps[i].after_ctx, idle_timestamps[i].after_response);
-            // log_info("Total time lost :%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].before_ctx);
-            // log_info("Time spent in context switch :%llu\n", idle_timestamps[i].after_ctx - idle_timestamps[i].before_ctx);
-            // log_info("Total time spent doing useful work: %lld\n", idle_timestamps[i].before_ctx - idle_timestamps[i].start_req);
+            log_info("Total time lost :%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].before_ctx);
+            log_info("Time spent in context switch :%llu\n", idle_timestamps[i].after_ctx - idle_timestamps[i].before_ctx);
+            log_info("Total time spent doing useful work: %lld\n", idle_timestamps[i].before_ctx - idle_timestamps[i].start_req);
+            num_yields++;
         }
         else {
-            log_info("%llu, %llu, %llu, %llu \n", idle_timestamps[i].start_req, idle_timestamps[i].before_ctx, idle_timestamps[i].after_ctx, idle_timestamps[i].after_response);
-
-            // log_info("Total time lost :%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].after_ctx);
-            // log_info("Total time spent doing useful work: %lld\n", idle_timestamps[i].after_ctx - idle_timestamps[i].start_req);
+            log_info("Total time lost :%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].after_ctx);
+            log_info("Total time spent doing useful work: %lld\n", idle_timestamps[i].after_ctx - idle_timestamps[i].start_req);
         }
-        // log_info("Time spent sending response:%llu\n", idle_timestamps[i].after_response - idle_timestamps[i].after_ctx);
-        // log_info("Time spent idling:%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].after_response);
+        log_info("Time spent sending response:%llu\n", idle_timestamps[i].after_response - idle_timestamps[i].after_ctx);
+        log_info("Time spent idling:%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].after_response);
     }
-    log_info("Total number of yields: %llu\n", idle_timestamp_iterator);
+    log_info("Total number of context switches: %llu\n", num_yields);
 
 }
 
@@ -199,8 +197,7 @@ static void test_handler(struct dune_tf *tf)
     dune_apic_eoi();
 
     /* Turn on to benchmark timeliness of yields */
-    idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
-    idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1); 
+    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
 
     swapcontext_fast_to_control(cont, &uctx_main);
 }
@@ -210,8 +207,7 @@ void concord_func()
     concord_preempt_now = 0;
 
     /* Turn on to benchmark timeliness of yields */
-    idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
-    idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1); 
+    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
 
     swapcontext_very_fast(cont, &uctx_main);
 }
@@ -583,8 +579,9 @@ static inline void handle_fake_request(void)
     while (dispatcher_requests[cpu_nr_].requests[active_req].flag != READY);
 
     /* Turn on to debug time lost in waiting for new req */
-    idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1);    
-    idle_timestamps[idle_timestamp_iterator].start_req = get_ns();
+    // if(likely(IS_FIRST_PACKET))
+    //     idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1);
+    // idle_timestamps[idle_timestamp_iterator].start_req = get_ns();
 
     preempt_check[cpu_nr_].timestamp = rdtsc();
     preempt_check[cpu_nr_].check = true;
@@ -602,7 +599,8 @@ static inline void handle_fake_request(void)
         handle_context();
     }
     /* Turn on to debug time lost in waiting for new req */
-    idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
+    // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
+
     preempt_check[cpu_nr_].check = false;
 }
 
@@ -624,7 +622,7 @@ static inline void finish_request(void)
     dispatcher_requests[cpu_nr_].requests[active_req].flag = DONE;
 
     /* Turn on to debug time lost in waiting for new req */
-    idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
+    // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
 }
 
 void do_work(void)
