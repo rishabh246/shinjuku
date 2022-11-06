@@ -113,8 +113,7 @@ void do_fake_networking(void)
 			struct mbuf* temp = mbuf_alloc_local();
 
 			generate_db_req(temp);
-			// generate_benchmark_request(temp, packet_counter);
-			
+	
 			// -------- Send --------
 			networker_pointers.pkts[t] = temp;
 			networker_pointers.types[t] = 0; 	// For now, only 1 port/type
@@ -166,6 +165,10 @@ struct db_req* generate_db_req(struct mbuf * temp)
 		strcpy(req->key, "");
 	}
 
+	// Wait for given inter-arrival time
+	uint64_t wait_time_ns = get_random_expo(MU*LOAD_LEVEL) * 1000;
+	uint64_t start_time = get_ns();
+	while(get_ns() - start_time < wait_time_ns);
 	req->ts = get_ns();
 	return req;
 }

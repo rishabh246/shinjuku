@@ -22,17 +22,28 @@
 #define METHOD_NONE     2
 #define METHOD_CONCORD  3
 
+// Fraction of maximum load that system can support
+#define LOAD_LEVEL 0.8    
+
 // Different workload mixes 
 #define BENCHMARK_TYPE       	        1 
 
-#if (BENCHMARK_TYPE == 0 || BENCHMARK_TYPE == 1)   // 0 -> 100% 100us.  1 -> 50% 1us, 50% 100us
+#if BENCHMARK_TYPE == 0                      // 100% 100us.
 #define BENCHMARK_SMALL_PKT_SPIN   62   
 #define BENCHMARK_SMALL_PKT_NS     1000
 #define BENCHMARK_LARGE_PKT_SPIN   6200  
 #define BENCHMARK_LARGE_PKT_NS     100000
-#elif                                    // 99.5% 0.5us, 0.5% 500us
+#define MU                         0.01
+#elif  BENCHMARK_TYPE == 1                  // 50% 1us, 50% 100us
+#define BENCHMARK_SMALL_PKT_SPIN   62   
+#define BENCHMARK_SMALL_PKT_NS     1000
+#define BENCHMARK_LARGE_PKT_SPIN   6200  
+#define BENCHMARK_LARGE_PKT_NS     100000
+#define MU                         0.0198                
+#elif  BENCHMARK_TYPE == 2                  // 99.5% 0.5us, 0.5% 500us
 #define BENCHMARK_SMALL_PKT_SPIN   27 
 #define BENCHMARK_SMALL_PKT_NS     500
 #define BENCHMARK_LARGE_PKT_SPIN   30000 
 #define BENCHMARK_LARGE_PKT_NS     500000
+#define MU                         0.333611
 #endif

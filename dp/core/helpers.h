@@ -7,6 +7,10 @@
 #include <stdint.h>
 #include "benchmark.h"
 
+#include <stdlib.h>
+#include <math.h>
+#include <time.h>
+
 #if SCHEDULE_METHOD == METHOD_PI
 #define PRE_PROTECTCALL { asm volatile ("cli" :::); }
 #define POST_PROTECTCALL { asm volatile ("sti" :::); }
@@ -36,4 +40,10 @@ static inline void nsleep(uint64_t ns)
 		asm volatile("nop");
 		asm volatile("nop");
 	}
+}
+
+static inline double get_random_expo(double lambda){
+    double u;
+    u = rand() / (RAND_MAX + 1.0);
+    return -log(1- u) / lambda;
 }
