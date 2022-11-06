@@ -10,7 +10,6 @@
 /* ----------------------------- */
 
 #define BENCHMARK_NO_PACKETS          100
-#define BENCHMARK_TYPE       	        1
 #define BENCHMARK_STOP_AT_PACKET      100
 #define BENCHMARK_STOP_AT_NS        1000000 * 20 
 #define SCHEDULE_METHOD          METHOD_CONCORD
@@ -23,11 +22,17 @@
 #define METHOD_NONE     2
 #define METHOD_CONCORD  3
 
-// Define Packet Sizes
-#if BENCHMARK_TYPE == 1
-#define BENCHMARK_SMALL_PKT_NS 1  * 1000
-#define BENCHMARK_BIG_PKT_NS   10 * 1000
-#elif
-#define BENCHMARK_SMALL_PKT_NS 0.5 * 1000
-#define BENCHMARK_BIG_PKT      500 * 1000
+// Different workload mixes 
+#define BENCHMARK_TYPE       	        1 
+
+#if (BENCHMARK_TYPE == 0 || BENCHMARK_TYPE == 1)   // 0 -> 100% 100us.  1 -> 50% 1us, 50% 100us
+#define BENCHMARK_SMALL_PKT_SPIN   62   
+#define BENCHMARK_SMALL_PKT_NS     1000
+#define BENCHMARK_LARGE_PKT_SPIN   6200  
+#define BENCHMARK_LARGE_PKT_NS     100000
+#elif                                    // 99.5% 0.5us, 0.5% 500us
+#define BENCHMARK_SMALL_PKT_SPIN   27 
+#define BENCHMARK_SMALL_PKT_NS     500
+#define BENCHMARK_LARGE_PKT_SPIN   30000 
+#define BENCHMARK_LARGE_PKT_NS     500000
 #endif

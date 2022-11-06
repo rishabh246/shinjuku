@@ -85,6 +85,7 @@ extern leveldb_readoptions_t *roptions;
 extern leveldb_writeoptions_t *woptions;
 
 #define PREEMPT_VECTOR 0xf2
+#define CPU_FREQ_GHZ 3.3
 
 // Local Variables
 uint64_t JOB_STARTED_AT = 0;
@@ -101,6 +102,10 @@ struct idle_timestamping {
 };
 struct idle_timestamping idle_timestamps[ITERATOR_LIMIT] = {0};
 uint64_t idle_timestamp_iterator = 0;
+
+#define SLOWDOWN_ITERATOR_LIMIT 1048576
+uint64_t slowdowns[SLOWDOWN_ITERATOR_LIMIT] = {0};
+uint64_t slowdown_iterator = 0;
 
 void print_stats(void){
     /* Idle time stats */
@@ -120,6 +125,11 @@ void print_stats(void){
         log_info("Time spent idling:%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].after_response);
     }
     log_info("Total number of context switches: %llu\n", num_yields);
+
+    for(int i = 0; i <1048576; i++){
+        if(slowdowns[i])
+            log_info("Request slowdown: %llu\n", slowdowns[i]);
+    }
 
 }
 
@@ -404,12 +414,11 @@ static void simple_generic_work(long ns, int id)
     swapcontext_very_fast(cont, &uctx_main);
 }
 
-static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
+static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 {
     // Set interrupt flag
     asm volatile("sti" ::
                      :);
-    uint64_t start_time = _start_time;
     DB_REQ_TYPE type = db_pkg->type;
     uint64_t iter_cnt = 0;
 
@@ -431,7 +440,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
 
     case (DB_GET):
     {
-        simpleloop(62);
+        simpleloop(BENCHMARK_SMALL_PKT_SPIN);
         // char *db_err = NULL;
         // int read_len;
 
@@ -461,8 +470,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     }
     case (DB_ITERATOR):
     {
-        simpleloop(6200000);
-
+        simpleloop(BENCHMARK_LARGE_PKT_SPIN); 
         break;
     }
 
@@ -484,13 +492,16 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
         break;
     }
 
-    // printf("Type of request %d, handle time (ns): %d\n", db_pkg->type, get_ns()-start_time);
-
-    // fake_network_send(db_pkg->type, start_time - get_ns(), "finish", 7);
     asm volatile("cli" ::
                      :);
 
     TEST_TOTAL_PACKETS_COUNTER += 1;
+    
+    /* Turn on to get slowdowns */
+    uint64_t cur_time = rdtsc();
+    uint64_t elapsed_time = cur_time - start_time;
+    slowdowns[slowdown_iterator] = elapsed_time/(db_pkg->ns * CPU_FREQ_GHZ);
+    slowdown_iterator = (slowdown_iterator+1) & (SLOWDOWN_ITERATOR_LIMIT-1);
 
     if (TEST_TOTAL_PACKETS_COUNTER == BENCHMARK_STOP_AT_PACKET)
     {
@@ -536,7 +547,7 @@ static inline void handle_fake_new_packet(void)
     set_context_link(cont, &uctx_main);
 
     // makecontext(cont, (void (*)(void))simple_generic_work, 2, req->ns, req->id);
-    makecontext(cont, (void (*)(void))do_db_generic_work, 2, req, get_ns());
+    makecontext(cont, (void (*)(void))do_db_generic_work, 2, req, dispatcher_requests[cpu_nr_].requests[active_req].timestamp);
 
     finished = false;
     ret = swapcontext_very_fast(&uctx_main, cont);

@@ -52,7 +52,7 @@ extern bool INIT_FINISHED;
 bool TEST_STARTED = false;
 
 struct custom_payload* generate_benchmark_request(struct mbuf* temp, uint64_t t);
-struct db_req* generate_db_req(DB_REQ_TYPE type, struct mbuf * temp);
+struct db_req* generate_db_req(struct mbuf * temp);
 
 /**
  * do_networking - implements networking core's functionality
@@ -97,9 +97,6 @@ void do_fake_networking(void)
 
 	while (!INIT_FINISHED);
 	
-	
-	DB_REQ_TYPE request_types [2] = { DB_ITERATOR , DB_GET };
-
 	while (packet_counter < BENCHMARK_NO_PACKETS + 2)
 	{
 		while (networker_pointers.cnt != 0);
@@ -115,7 +112,7 @@ void do_fake_networking(void)
 		{
 			struct mbuf* temp = mbuf_alloc_local();
 
-			generate_db_req(request_types[0], temp);
+			generate_db_req(temp);
 			// generate_benchmark_request(temp, packet_counter);
 			
 			// -------- Send --------
@@ -130,30 +127,40 @@ void do_fake_networking(void)
 }
 
 
-struct db_req* generate_db_req(DB_REQ_TYPE type, struct mbuf * temp)
+struct db_req* generate_db_req(struct mbuf * temp)
 {
 	struct db_req* req = mbuf_mtod(temp, struct db_req *);
-	req->type = type;
+	#if BENCHMARK_TYPE == 0
+	req->type = DB_ITERATOR; 
+	#elif BENCHMARK_TYPE == 1
+	req-> type = (rand() % 2) ? DB_GET : DB_ITERATOR;
+	#elif BENCHMARK_TYPE == 2
+	req-> type = (rand() % 1000) < 995 ? DB_GET : DB_ITERATOR;
+	#else
+  assert(0 && "Unknown benchmark type, quitting");
+	#endif
 
-	if (type == DB_GET)
+	if (req->type == DB_GET)
 	{
 		strcpy(req->key, "musakey");
 		strcpy(req->val, "musavalue");
+		req->ns = BENCHMARK_SMALL_PKT_NS;
 	} 
-	else if(type == DB_ITERATOR)
+	else if(req->type == DB_ITERATOR)
 	{
 		strcpy(req->key, "");
 		strcpy(req->key, "");
+		req->ns = BENCHMARK_LARGE_PKT_NS;
 	}
-	else if(type == DB_DELETE)
+	else if(req->type == DB_DELETE)
 	{
 	}
-	else if(type == DB_PUT)
+	else if(req->type == DB_PUT)
 	{
 		strcpy(req->key, "musakey");
 		strcpy(req->val, "musavalue");
 	}
-	else if (type == DB_SEEK)
+	else if (req->type == DB_SEEK)
 	{
 		strcpy(req->key, "");
 		strcpy(req->key, "");
