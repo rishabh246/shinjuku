@@ -52,7 +52,6 @@ uint64_t TEST_RCVD_BIG_PACKETS;
 uint64_t TEST_TOTAL_PACKETS_COUNTER; 
 bool 	 TEST_FINISHED = false;
 
-
 extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 extern void yield_handler(void);
 
@@ -227,7 +226,6 @@ void do_dispatching(int num_cpus)
 			printf("Benchmark - Total number of packets %d \n", TEST_TOTAL_PACKETS_COUNTER);
 			printf("Benchmark - %d big, %d small packets\n", TEST_RCVD_BIG_PACKETS, TEST_RCVD_SMALL_PACKETS);
 			printf("Benchmark - Time ellapsed: %llu\n", TEST_END_TIME - TEST_START_TIME);
-			// printf("Benchmark - Total scheduled times: %d\n", total_scheduled);
 			flag = false;
 		}
 
