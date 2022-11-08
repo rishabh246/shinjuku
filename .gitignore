@@ -6,6 +6,10 @@
 *.swp
 *.la
 *.so*
+*.csv
+*.txt
+
+
 .depend
 
 /deps/dpdk
@@ -20,3 +24,5 @@
 db/bench-db/*
 
 .vscode
+
+
