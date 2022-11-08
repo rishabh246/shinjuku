@@ -34,6 +34,7 @@ BENCH_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/lib/concord_apileveldb.a
 BENCH_INC = $(CONCORD_ROOT)/benchmarks/leveldb/lib
 
 LEVELDB_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/leveldb/concord_libleveldb.a
+LEVELDB_INC = $(CONCORD_ROOT)/benchmarks/leveldb/leveldb/include
 
 # ================================
 
@@ -43,7 +44,7 @@ DUNE	= ../deps/dune
 PCIDMA	= ../deps/pcidma
 DPDK_INC = -I$(DPDK)/build/include -I$(DPDK)/lib/librte_eal/common -I$(DPDK)/drivers/net/ixgbe -I$(DPDK)/drivers/net/i40e
 INC	= -I../inc -I$(DUNE)/libdune -I../inc/lwip -I../inc/lwip/ipv4 -I../inc/lwip/ipv6 $(DPDK_INC) -include$(DUNE)/kern/dune.h
-INC	+= -I$(PCIDMA) -I$(CONCORD_INC) -I$(BENCH_INC) -I../deps/leveldb/include 
+INC	+= -I$(PCIDMA) -I$(CONCORD_INC) -I$(BENCH_INC) -I$(LEVELDB_INC)
 CC	= gcc
 CFLAGS= -g -Wall -fno-pie -fno-dwarf2-cfi-asm -fno-asynchronous-unwind-tables -O0 -mno-red-zone $(INC) -D__KERNEL__ -DFAKE_WORK $(EXTRA_CFLAGS)
 LD	= g++
