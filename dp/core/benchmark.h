@@ -9,10 +9,10 @@
 // 2 -> None (Cause Hol-block)
 /* ----------------------------- */
 
-#define BENCHMARK_NO_PACKETS          100
-#define BENCHMARK_STOP_AT_PACKET      100
-#define BENCHMARK_STOP_AT_NS        1000000 * 20 
-#define SCHEDULE_METHOD          METHOD_CONCORD
+#define BENCHMARK_NO_PACKETS         1000000000000
+#define BENCHMARK_STOP_AT_PACKET     1000000000000
+#define BENCHMARK_DURATION_US        1000000 * 60 
+#define SCHEDULE_METHOD              METHOD_CONCORD
 #define DB_NO_KEY                   100000
 
 
@@ -22,11 +22,8 @@
 #define METHOD_NONE     2
 #define METHOD_CONCORD  3
 
-// Fraction of maximum load that system can support
-#define LOAD_LEVEL 0.8    
-
 // Different workload mixes 
-#define BENCHMARK_TYPE       	        1 
+#define BENCHMARK_TYPE       	        2 
 
 #if BENCHMARK_TYPE == 0                      // 100% 100us.
 #define BENCHMARK_SMALL_PKT_SPIN   62   

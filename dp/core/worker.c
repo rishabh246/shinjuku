@@ -103,9 +103,13 @@ struct idle_timestamping {
 struct idle_timestamping idle_timestamps[ITERATOR_LIMIT] = {0};
 uint64_t idle_timestamp_iterator = 0;
 
-#define SLOWDOWN_ITERATOR_LIMIT 1048576
-uint64_t slowdowns[SLOWDOWN_ITERATOR_LIMIT] = {0};
-uint64_t slowdown_iterator = 0;
+#define RESULTS_ITERATOR_LIMIT 1048576
+struct request_perf_results {
+    uint64_t latency;
+    uint64_t slowdown;
+};
+struct request_perf_results results[RESULTS_ITERATOR_LIMIT] = {0};
+uint64_t results_iterator = 0;
 
 void print_stats(void){
     /* Idle time stats */
@@ -127,8 +131,8 @@ void print_stats(void){
     log_info("Total number of context switches: %llu\n", num_yields);
 
     for(int i = 0; i <1048576; i++){
-        if(slowdowns[i])
-            log_info("Request slowdown: %llu\n", slowdowns[i]);
+        if(results[i].latency)
+            log_info("Request latency, slowdown: %llu : %llu\n", results[i].latency, results[i].slowdown);
     }
 
 }
@@ -372,48 +376,6 @@ static inline void handle_new_packet(void)
     }
 }
 
-static void simple_generic_work(long ns, int id)
-{
-    uint64_t i = 0, to_run = 0;
-    float us = (float)ns / 12;
-
-    to_run = us / 3.3;
-
-    asm volatile("sti" ::
-                     :);
-    do
-    {
-        asm volatile("nop");
-        i++;
-        if (unlikely(get_ns() - JOB_STARTED_AT > 4900))
-        {
-            asm volatile("nop");
-
-#if SCHEDULE_METHOD == METHOD_YIELD
-            swapcontext_fast_to_control(cont, &uctx_main);
-#endif
-        }
-    } while (to_run > i);
-    asm volatile("cli" ::
-                     :);
-
-    TEST_TOTAL_PACKETS_COUNTER += 1;
-
-    if (TEST_TOTAL_PACKETS_COUNTER == BENCHMARK_STOP_AT_PACKET)
-    {
-        TEST_END_TIME = get_us();
-        TEST_FINISHED = true;
-    }
-
-    if (ns == BENCHMARK_SMALL_PKT_NS)
-        TEST_RCVD_SMALL_PACKETS += 1;
-    else
-        TEST_RCVD_BIG_PACKETS += 1;
-
-    finished = true;
-    swapcontext_very_fast(cont, &uctx_main);
-}
-
 static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 {
     // Set interrupt flag
@@ -497,11 +459,12 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 
     TEST_TOTAL_PACKETS_COUNTER += 1;
     
-    /* Turn on to get slowdowns */
+    /* Turn on to get results */
     uint64_t cur_time = rdtsc();
     uint64_t elapsed_time = cur_time - start_time;
-    slowdowns[slowdown_iterator] = elapsed_time/(db_pkg->ns * CPU_FREQ_GHZ);
-    slowdown_iterator = (slowdown_iterator+1) & (SLOWDOWN_ITERATOR_LIMIT-1);
+    results[results_iterator].latency = elapsed_time/(CPU_FREQ_GHZ * 1000);
+    results[results_iterator].slowdown = elapsed_time/(db_pkg->ns * CPU_FREQ_GHZ);
+    results_iterator = (results_iterator+1) & (RESULTS_ITERATOR_LIMIT-1);
 
     if (TEST_TOTAL_PACKETS_COUNTER == BENCHMARK_STOP_AT_PACKET)
     {
@@ -546,7 +509,6 @@ static inline void handle_fake_new_packet(void)
     getcontext_fast(cont);
     set_context_link(cont, &uctx_main);
 
-    // makecontext(cont, (void (*)(void))simple_generic_work, 2, req->ns, req->id);
     makecontext(cont, (void (*)(void))do_db_generic_work, 2, req, dispatcher_requests[cpu_nr_].requests[active_req].timestamp);
 
     finished = false;
@@ -647,8 +609,6 @@ void do_work(void)
 
     while (true)
     {
-        JOB_STARTED_AT = get_ns();
-
 #ifdef FAKE_WORK
         handle_fake_request();
         fake_eth_process_send();

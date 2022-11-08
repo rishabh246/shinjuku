@@ -51,6 +51,12 @@
 extern bool INIT_FINISHED;
 bool TEST_STARTED = false;
 
+#ifdef LOAD_LEVEL // Passed during compilation
+	double load_level = LOAD_LEVEL/100.0; 
+#else
+	double load_level = 0;
+#endif
+
 struct custom_payload* generate_benchmark_request(struct mbuf* temp, uint64_t t);
 struct db_req* generate_db_req(struct mbuf * temp);
 
@@ -88,27 +94,29 @@ void do_networking(void)
  */
 void do_fake_networking(void)
 {
-	uint64_t packet_counter = 0, work_counter = 0, t = 0;
 	srand(time(NULL));
 
 	TEST_STARTED = true;
-	log_info("Generating fake works\n");
+	log_info("Generating fake work\n");
+	assert(load_level && "No load level passed, exiting");
+	log_info("Load level:  %f\n", load_level);
 	log_info("Test started\n");
 
 	while (!INIT_FINISHED);
 	
-	while (packet_counter < BENCHMARK_NO_PACKETS + 2)
+	while (true)
 	{
+
 		while (networker_pointers.cnt != 0);
 
-		for (t = 0; t < networker_pointers.free_cnt; t++)
+		for (uint64_t t = 0; t < networker_pointers.free_cnt; t++)
 		{
 			mbuf_free(networker_pointers.pkts[t]);
 		}
 
 		networker_pointers.free_cnt = 0;
 
-		for (t = 0; t < ETH_RX_MAX_BATCH; t++)
+		for (uint64_t t = 0; t < ETH_RX_MAX_BATCH; t++)
 		{
 			struct mbuf* temp = mbuf_alloc_local();
 
@@ -117,8 +125,6 @@ void do_fake_networking(void)
 			// -------- Send --------
 			networker_pointers.pkts[t] = temp;
 			networker_pointers.types[t] = 0; 	// For now, only 1 port/type
-
-			packet_counter += 1;
 		}
 		
 		networker_pointers.cnt = ETH_RX_MAX_BATCH;
@@ -166,7 +172,7 @@ struct db_req* generate_db_req(struct mbuf * temp)
 	}
 
 	// Wait for given inter-arrival time
-	uint64_t wait_time_ns = get_random_expo(MU*LOAD_LEVEL) * 1000;
+	uint64_t wait_time_ns = get_random_expo(MU*load_level) * 1000;
 	uint64_t start_time = get_ns();
 	while(get_ns() - start_time < wait_time_ns);
 	req->ts = get_ns();

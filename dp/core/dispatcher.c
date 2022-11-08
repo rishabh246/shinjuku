@@ -44,6 +44,7 @@ extern uint64_t total_scheduled;
 extern bool TEST_STARTED;
 extern bool IS_FIRST_PACKET;
 extern bool INIT_FINISHED;
+void print_stats(void);
 
 uint64_t TEST_START_TIME;
 uint64_t TEST_END_TIME;
@@ -56,7 +57,7 @@ extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 extern void yield_handler(void);
 
 #define PREEMPT_VECTOR 0xf2
-#define PREEMPTION_DELAY 5000
+#define PREEMPTION_DELAY 2000
 #define CPU_FREQ_GHZ 3.3
 
 extern int concord_preempt_now;
@@ -220,13 +221,16 @@ void do_dispatching(int num_cpus)
 
 	while (1)
 	{
-		if (flag && TEST_STARTED && IS_FIRST_PACKET && (TEST_FINISHED || ((get_us() - TEST_START_TIME) > 10000000 * 20 )))
+		if (flag && TEST_STARTED && IS_FIRST_PACKET && (TEST_FINISHED || ((get_us() - TEST_START_TIME) > BENCHMARK_DURATION_US )))
 		{
-			printf("\n\n ----------- Benchmark FINISHED ----------- \n");
-			printf("Benchmark - Total number of packets %d \n", TEST_TOTAL_PACKETS_COUNTER);
-			printf("Benchmark - %d big, %d small packets\n", TEST_RCVD_BIG_PACKETS, TEST_RCVD_SMALL_PACKETS);
-			printf("Benchmark - Time ellapsed: %llu\n", TEST_END_TIME - TEST_START_TIME);
+			log_info("\n\n ----------- Benchmark FINISHED ----------- \n");
+			log_info("Benchmark - Total number of packets %d \n", TEST_TOTAL_PACKETS_COUNTER);
+			log_info("Benchmark - %d big, %d small packets\n", TEST_RCVD_BIG_PACKETS, TEST_RCVD_SMALL_PACKETS);
+			log_info("Benchmark - Time elapsed (us): %llu\n", get_us() - TEST_START_TIME);
+			print_stats();
+			log_info("Dispatcher exiting\n");
 			flag = false;
+			break;
 		}
 
 		for(i = 0; i < JBSQ_LEN; i++){
