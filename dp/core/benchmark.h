@@ -22,7 +22,7 @@
 #define METHOD_CONCORD  3
 
 // Different workload mixes 
-#define BENCHMARK_TYPE       	        0 
+#define BENCHMARK_TYPE       	        1 
 
 #if BENCHMARK_TYPE == 0                      // 100% 100us.
 #define BENCHMARK_SMALL_PKT_SPIN   62   
