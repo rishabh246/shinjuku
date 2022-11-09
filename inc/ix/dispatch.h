@@ -52,9 +52,16 @@ struct mempool_datastore mcell_datastore;
 struct mempool mcell_mempool __attribute((aligned(64)));
 
 #define JBSQ_LEN    0x02
+
+#if JBSQ_LEN == 0x02
 static inline jbsq_get_next(uint8_t iter){
         return iter^1; // This is for JBSQ_LEN = 2
 }
+#elif JBSQ_LEN == 0x01
+static inline jbsq_get_next(uint8_t iter){
+        return iter;
+}
+#endif
 
 struct worker_response
 {

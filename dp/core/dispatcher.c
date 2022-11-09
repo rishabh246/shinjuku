@@ -57,7 +57,7 @@ extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 extern void yield_handler(void);
 
 #define PREEMPT_VECTOR 0xf2
-#define PREEMPTION_DELAY 2000
+#define PREEMPTION_DELAY 5000
 #define CPU_FREQ_GHZ 3.3
 
 extern int concord_preempt_now;

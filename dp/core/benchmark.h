@@ -9,7 +9,6 @@
 // 2 -> None (Cause Hol-block)
 /* ----------------------------- */
 
-#define BENCHMARK_NO_PACKETS         1000000000000
 #define BENCHMARK_STOP_AT_PACKET     1000000000000
 #define BENCHMARK_DURATION_US        1000000 * 60 
 #define SCHEDULE_METHOD              METHOD_CONCORD
@@ -23,7 +22,7 @@
 #define METHOD_CONCORD  3
 
 // Different workload mixes 
-#define BENCHMARK_TYPE       	        2 
+#define BENCHMARK_TYPE       	        1 
 
 #if BENCHMARK_TYPE == 0                      // 100% 100us.
 #define BENCHMARK_SMALL_PKT_SPIN   62   
