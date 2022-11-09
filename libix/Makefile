@@ -21,9 +21,11 @@
 
 # A Makefile for libIX.
 ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+CONCORD_ROOT = $(ROOT_DIR)/../..
 LEVELDB_INC = $(CONCORD_ROOT)/benchmarks/leveldb/leveldb/include
 
-INC	= -I. -I../inc -I$(LEVELDB_INC)
+
+INC	= -I. -I../inc -I $(LEVELDB_INC)
 CC 	= gcc
 CFLAGS	= -g -Wall -O3 $(INC)
 AR	= ar

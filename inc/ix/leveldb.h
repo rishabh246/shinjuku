@@ -31,6 +31,7 @@ typedef struct db_req
     DB_REQ_TYPE type;
     db_key key;
     db_value val;
+    uint64_t ns; // service time in ns
     uint64_t ts;
 } db_req;
 

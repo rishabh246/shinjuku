@@ -51,8 +51,14 @@
 extern bool INIT_FINISHED;
 bool TEST_STARTED = false;
 
+#ifdef LOAD_LEVEL // Passed during compilation
+	double load_level = LOAD_LEVEL/100.0; 
+#else
+	double load_level = 0;
+#endif
+
 struct custom_payload* generate_benchmark_request(struct mbuf* temp, uint64_t t);
-struct db_req* generate_db_req(DB_REQ_TYPE type, struct mbuf * temp);
+struct db_req* generate_db_req(struct mbuf * temp);
 
 /**
  * do_networking - implements networking core's functionality
@@ -88,41 +94,37 @@ void do_networking(void)
  */
 void do_fake_networking(void)
 {
-	uint64_t packet_counter = 0, work_counter = 0, t = 0;
 	srand(time(NULL));
 
 	TEST_STARTED = true;
-	log_info("Generating fake works\n");
+	log_info("Generating fake work\n");
+	assert(load_level && "No load level passed, exiting");
+	log_info("Load level:  %f\n", load_level);
 	log_info("Test started\n");
 
 	while (!INIT_FINISHED);
 	
-	
-	DB_REQ_TYPE request_types [2] = { DB_ITERATOR , DB_GET };
-
-	while (packet_counter < BENCHMARK_NO_PACKETS + 2)
+	while (true)
 	{
+
 		while (networker_pointers.cnt != 0);
 
-		for (t = 0; t < networker_pointers.free_cnt; t++)
+		for (uint64_t t = 0; t < networker_pointers.free_cnt; t++)
 		{
 			mbuf_free(networker_pointers.pkts[t]);
 		}
 
 		networker_pointers.free_cnt = 0;
 
-		for (t = 0; t < ETH_RX_MAX_BATCH; t++)
+		for (uint64_t t = 0; t < ETH_RX_MAX_BATCH; t++)
 		{
 			struct mbuf* temp = mbuf_alloc_local();
 
-			generate_db_req(request_types[0], temp);
-			// generate_benchmark_request(temp, packet_counter);
-			
+			generate_db_req(temp);
+	
 			// -------- Send --------
 			networker_pointers.pkts[t] = temp;
 			networker_pointers.types[t] = 0; 	// For now, only 1 port/type
-
-			packet_counter += 1;
 		}
 		
 		networker_pointers.cnt = ETH_RX_MAX_BATCH;
@@ -130,35 +132,49 @@ void do_fake_networking(void)
 }
 
 
-struct db_req* generate_db_req(DB_REQ_TYPE type, struct mbuf * temp)
+struct db_req* generate_db_req(struct mbuf * temp)
 {
 	struct db_req* req = mbuf_mtod(temp, struct db_req *);
-	req->type = type;
+	#if BENCHMARK_TYPE == 0
+	req->type = DB_ITERATOR; 
+	#elif BENCHMARK_TYPE == 1
+	req-> type = (rand() % 2) ? DB_GET : DB_ITERATOR;
+	#elif BENCHMARK_TYPE == 2
+	req-> type = (rand() % 1000) < 995 ? DB_GET : DB_ITERATOR;
+	#else
+  assert(0 && "Unknown benchmark type, quitting");
+	#endif
 
-	if (type == DB_GET)
+	if (req->type == DB_GET)
 	{
 		strcpy(req->key, "musakey");
 		strcpy(req->val, "musavalue");
+		req->ns = BENCHMARK_SMALL_PKT_NS;
 	} 
-	else if(type == DB_ITERATOR)
+	else if(req->type == DB_ITERATOR)
 	{
 		strcpy(req->key, "");
 		strcpy(req->key, "");
+		req->ns = BENCHMARK_LARGE_PKT_NS;
 	}
-	else if(type == DB_DELETE)
+	else if(req->type == DB_DELETE)
 	{
 	}
-	else if(type == DB_PUT)
+	else if(req->type == DB_PUT)
 	{
 		strcpy(req->key, "musakey");
 		strcpy(req->val, "musavalue");
 	}
-	else if (type == DB_SEEK)
+	else if (req->type == DB_SEEK)
 	{
 		strcpy(req->key, "");
 		strcpy(req->key, "");
 	}
 
+	// Wait for given inter-arrival time
+	uint64_t wait_time_ns = get_random_expo(MU*load_level) * 1000;
+	uint64_t start_time = get_ns();
+	while(get_ns() - start_time < wait_time_ns);
 	req->ts = get_ns();
 	return req;
 }

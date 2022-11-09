@@ -60,6 +60,10 @@ ifneq ($(ENABLE_KSTATS),)
 CFLAGS += -DENABLE_KSTATS
 endif
 
+ifneq ($(LOAD_LEVEL),0)
+CFLAGS += -DLOAD_LEVEL=$(LOAD_LEVEL)
+endif
+
 SRCS =
 DIRS = core drivers lwip net sandbox
 

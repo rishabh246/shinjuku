@@ -101,6 +101,7 @@ extern void do_dispatching(int num_cpus);
 
 extern struct mempool context_pool;
 extern struct mempool stack_pool;
+pthread_t tid[MAX_WORKERS];
 
 // Flag that controls whether interrupts are disabled during memory allocation.
 uint8_t flag;
@@ -374,8 +375,6 @@ void *start_cpu(void *arg)
 static int init_hw(void)
 {
 	int i, ret = 0;
-	pthread_t tid;
-
 	// will spawn per-cpu initialization sequence on CPU0
 	ret = init_create_cpu(CFG.cpu[0], 1);
 	if (ret) {
@@ -386,7 +385,7 @@ static int init_hw(void)
 	percpu_get(cpu_nr) = 0;
 
 	for (i = 1; i < CFG.num_cpus; i++) {
-		ret = pthread_create(&tid, NULL, start_cpu, (void *)(unsigned long) i);
+		ret = pthread_create(&tid[i-1], NULL, start_cpu, (void *)(unsigned long) i);
 		if (ret) {
 			log_err("init: unable to create pthread\n");
 			return -EAGAIN;
@@ -486,7 +485,10 @@ int main(int argc, char *argv[])
 	INIT_FINISHED = true;
 
   do_dispatching(CFG.num_cpus);
-	log_info("finished handling contexts, looping forever...\n");
+	log_info("Killing all threads");
+	for (i = 0; i < CFG.num_cpus-1; i++) {
+		pthread_kill(tid[i],9);
+	}
 	return 0;
 }
 

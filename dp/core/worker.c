@@ -93,32 +93,63 @@ extern leveldb_readoptions_t *roptions;
 extern leveldb_writeoptions_t *woptions;
 
 #define PREEMPT_VECTOR 0xf2
+#define CPU_FREQ_GHZ 3.3
 
 // Local Variables
 uint64_t JOB_STARTED_AT = 0;
 uint64_t total_scheduled = 0;
 
-// For debugging purposes
-// uint64_t posted_interrupts[1024 * 1024] = {0};
-// uint64_t interrupt_iterator = 0;
+/* Turn on to debug time lost in waiting for new req. ITERATOR_LIMIT must be power of 2*/
+#define ITERATOR_LIMIT 1
 
-uint64_t yields [1024 * 1024] = {0};
-uint64_t yield_iterator = 0;
+struct idle_timestamping {
+    uint64_t start_req; // Timestamp when worker starts processing the job.
+    uint64_t before_ctx; // Timestamp immediately before ctx switch happens
+    uint64_t after_ctx; // Timestamp immediately after ctx switch happened
+    uint64_t after_response; // Timestamp immediately after worker writes to response
+};
+struct idle_timestamping idle_timestamps[ITERATOR_LIMIT] = {0};
+uint64_t idle_timestamp_iterator = 0;
 
-/* Turn on to debug time lost in waiting for new req */
-# define TIMESTAMP_CTR_LIMIT 1000000
-// struct idle_timestamping {
-//     uint64_t after_ctx; // Timestamp immediately after ctx switch happened
-//     uint64_t after_response; // Timestamp immediately after worker writes to response
-//     uint64_t start_next_req; // Timestamp when worker starts processing the next job.
-// };
-// struct idle_timestamping idle_timestamps[TIMESTAMP_CTR_LIMIT];
-// uint64_t idle_timestamp_iterator = 0;
+#define RESULTS_ITERATOR_LIMIT 1048576
+struct request_perf_results {
+    uint64_t latency;
+    uint64_t slowdown;
+};
+struct request_perf_results results[RESULTS_ITERATOR_LIMIT] = {0};
+uint64_t results_iterator = 0;
+
+void print_stats(void){
+    /* Idle time stats */
+    uint64_t num_yields = 0;
+    for(int i =0; i < (int)idle_timestamp_iterator-1; i++){
+        if(idle_timestamps[i].before_ctx){
+            log_info("Total time lost :%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].before_ctx);
+            log_info("Time spent in context switch :%llu\n", idle_timestamps[i].after_ctx - idle_timestamps[i].before_ctx);
+            log_info("Total time spent doing useful work: %lld\n", idle_timestamps[i].before_ctx - idle_timestamps[i].start_req);
+            num_yields++;
+        }
+        else {
+            log_info("Total time lost :%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].after_ctx);
+            log_info("Total time spent doing useful work: %lld\n", idle_timestamps[i].after_ctx - idle_timestamps[i].start_req);
+        }
+        log_info("Time spent sending response:%llu\n", idle_timestamps[i].after_response - idle_timestamps[i].after_ctx);
+        log_info("Time spent idling:%llu\n", idle_timestamps[i+1].start_req - idle_timestamps[i].after_response);
+    }
+    log_info("Total number of context switches: %llu\n", num_yields);
+
+    for(int i = 0; i <1048576; i++){
+        if(results[i].latency)
+            log_info("Request latency, slowdown: %llu : %llu\n", results[i].latency, results[i].slowdown);
+    }
+
+}
 
 __thread ucontext_t uctx_main;
 __thread ucontext_t *cont;
 __thread int cpu_nr_;
 __thread volatile uint8_t finished;
+__thread uint8_t active_req;
 
 // Added for leveldb
 extern uint8_t flag;
@@ -187,9 +218,11 @@ static void test_handler(struct dune_tf *tf)
     #if SCHEDULE_METHOD == METHOD_YIELD
     log_err("Interrupt fired \n");
     #endif
-
     dune_apic_eoi();
-    
+
+    /* Turn on to benchmark timeliness of yields */
+    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
+
     swapcontext_fast_to_control(cont, &uctx_main);
 }
 
@@ -202,22 +235,9 @@ void concord_func()
         return;
     }
     concord_preempt_now = 0;
-   
-    // yields[yield_iterator++] = get_ns();
 
-    // if(unlikely(yield_iterator == 100))
-    // {
-    //     for (int i =1; i < 100; i++)
-    //     {
-    //         printf("Epoch %lld\n", yields[i] - yields[i-1]); 
-    //     }
-    //     yield_iterator = 0;
-    // }
-
-    // simpleloop(5);
-    // preempt_check[0] = 1;
-    // timestamps[0] = rdtsc();
-
+    /* Turn on to benchmark timeliness of yields */
+    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
 
     swapcontext_very_fast(cont, &uctx_main);
 }
@@ -324,7 +344,10 @@ static inline void parse_packet(struct mbuf *pkt, void **data_ptr,
 static inline void init_worker(void)
 {
     cpu_nr_ = percpu_get(cpu_nr) - 2;
-    worker_responses[cpu_nr_].flag = PROCESSED;
+    active_req = 0;
+    for(int i = 0; i < JBSQ_LEN; i++){
+        worker_responses[cpu_nr_].responses[i].flag = PROCESSED;
+    }
 
     dune_register_intr_handler(PREEMPT_VECTOR, test_handler);
 
@@ -338,7 +361,7 @@ static inline void handle_new_packet(void)
     int ret;
     void *data;
     struct ip_tuple *id;
-    struct mbuf *pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
+    struct mbuf *pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
     parse_packet(pkt, &data, &id);
 
     log_info("parse packet");
@@ -349,7 +372,7 @@ static inline void handle_new_packet(void)
         uint32_t lsw = (uint64_t)data & 0x00000000FFFFFFFF;
         uint32_t msw_id = ((uint64_t)id & 0xFFFFFFFF00000000) >> 32;
         uint32_t lsw_id = (uint64_t)id & 0x00000000FFFFFFFF;
-        cont = dispatcher_requests[cpu_nr_].rnbl;
+        cont = dispatcher_requests[cpu_nr_].requests[active_req].rnbl;
         getcontext_fast(cont);
         set_context_link(cont, &uctx_main);
         makecontext(cont, (void (*)(void))generic_work, 4, msw, lsw,
@@ -369,54 +392,11 @@ static inline void handle_new_packet(void)
     }
 }
 
-static void simple_generic_work(long ns, int id)
-{
-    uint64_t i = 0, to_run = 0;
-    float us = (float)ns / 12;
-
-    to_run = us / 3.3;
-
-    asm volatile("sti" ::
-                     :);
-    do
-    {
-        asm volatile("nop");
-        i++;
-        if (unlikely(get_ns() - JOB_STARTED_AT > 4900))
-        {
-            asm volatile("nop");
-
-#if SCHEDULE_METHOD == METHOD_YIELD
-            swapcontext_fast_to_control(cont, &uctx_main);
-#endif
-        }
-    } while (to_run > i);
-    asm volatile("cli" ::
-                     :);
-
-    TEST_TOTAL_PACKETS_COUNTER += 1;
-
-    if (TEST_TOTAL_PACKETS_COUNTER == BENCHMARK_STOP_AT_PACKET)
-    {
-        TEST_END_TIME = get_us();
-        TEST_FINISHED = true;
-    }
-
-    if (ns == BENCHMARK_SMALL_PKT_NS)
-        TEST_RCVD_SMALL_PACKETS += 1;
-    else
-        TEST_RCVD_BIG_PACKETS += 1;
-
-    finished = true;
-    swapcontext_very_fast(cont, &uctx_main);
-}
-
-static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
+static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 {
     // Set interrupt flag
     asm volatile("sti" ::
                      :);
-    uint64_t start_time = _start_time;
     DB_REQ_TYPE type = db_pkg->type;
     uint64_t iter_cnt = 0;
 
@@ -438,7 +418,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
 
     case (DB_GET):
     {
-        simpleloop(62);
+        simpleloop(BENCHMARK_SMALL_PKT_SPIN);
         // char *db_err = NULL;
         // int read_len;
 
@@ -468,9 +448,8 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
     }
     case (DB_ITERATOR):
     {
+        // simpleloop(BENCHMARK_LARGE_PKT_SPIN); 
         cncrd_leveldb_scan(db,roptions, 'musa');
-        // simpleloop(6200000);
-
         break;
     }
 
@@ -492,18 +471,23 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t _start_time)
         break;
     }
 
-    // printf("Type of request %d, handle time (ns): %d\n", db_pkg->type, get_ns()-start_time);
-
-    // fake_network_send(db_pkg->type, start_time - get_ns(), "finish", 7);
     asm volatile("cli" ::
                      :);
 
     TEST_TOTAL_PACKETS_COUNTER += 1;
+    
+    /* Turn on to get results */
+    uint64_t cur_time = rdtsc();
+    uint64_t elapsed_time = cur_time - start_time;
+    results[results_iterator].latency = elapsed_time/(CPU_FREQ_GHZ * 1000);
+    results[results_iterator].slowdown = elapsed_time/(db_pkg->ns * CPU_FREQ_GHZ);
+    results_iterator = (results_iterator+1) & (RESULTS_ITERATOR_LIMIT-1);
 
     if (TEST_TOTAL_PACKETS_COUNTER == BENCHMARK_STOP_AT_PACKET)
     {
         TEST_END_TIME = get_us();
         TEST_FINISHED = true;
+        print_stats();
     }
 
     if (type == DB_GET || type == DB_PUT){
@@ -526,7 +510,7 @@ static inline void handle_fake_new_packet(void)
     // struct custom_payload *req;
     struct db_req *req;
 
-    pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].mbuf;
+    pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
 
     // req = mbuf_mtod(pkt, struct custom_payload *);
     req = mbuf_mtod(pkt, struct db_req *);
@@ -538,12 +522,11 @@ static inline void handle_fake_new_packet(void)
         return;
     }
 
-    cont = (struct mbuf *)dispatcher_requests[cpu_nr_].rnbl;
+    cont = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].rnbl;
     getcontext_fast(cont);
     set_context_link(cont, &uctx_main);
 
-    // makecontext(cont, (void (*)(void))simple_generic_work, 2, req->ns, req->id);
-    makecontext(cont, (void (*)(void))do_db_generic_work, 2, req, get_ns());
+    makecontext(cont, (void (*)(void))do_db_generic_work, 2, req, dispatcher_requests[cpu_nr_].requests[active_req].timestamp);
 
     finished = false;
     ret = swapcontext_very_fast(&uctx_main, cont);
@@ -552,15 +535,13 @@ static inline void handle_fake_new_packet(void)
         log_err("Failed to do swap into new context\n");
         exit(-1);
     }
-    /* Turn on to debug time lost in waiting for new req */
-    // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
 }
 
 static inline void handle_context(void)
 {
     int ret;
     finished = false;
-    cont = dispatcher_requests[cpu_nr_].rnbl;
+    cont = dispatcher_requests[cpu_nr_].requests[active_req].rnbl;
     set_context_link(cont, &uctx_main);
     ret = swapcontext_fast(&uctx_main, cont);
     if (ret)
@@ -568,16 +549,14 @@ static inline void handle_context(void)
         log_err("Failed to swap to existing context\n");
         exit(-1);
     }
-    /* Turn on to debug time lost in waiting for new req */
-    // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
 }
 
 static inline void handle_request(void)
 {
-    while (dispatcher_requests[cpu_nr_].flag == WAITING)
-        ;
-    dispatcher_requests[cpu_nr_].flag = WAITING;
-    if (dispatcher_requests[cpu_nr_].category == PACKET)
+    while (dispatcher_requests[cpu_nr_].requests[active_req].flag != READY);
+    preempt_check[cpu_nr_].timestamp = rdtsc();
+    preempt_check[cpu_nr_].check = true;
+    if (dispatcher_requests[cpu_nr_].requests[active_req].category == PACKET)
         handle_new_packet();
     else
         handle_context();
@@ -587,24 +566,16 @@ bool IS_FIRST_PACKET = false;
 
 static inline void handle_fake_request(void)
 {
-    /* Turn on to debug time lost in waiting for new req */
-    // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
-    while (dispatcher_requests[cpu_nr_].flag == WAITING);
-    /* Turn on to debug time lost in waiting for new req */
-    // if(likely(IS_FIRST_PACKET)){
-    //     idle_timestamps[idle_timestamp_iterator++].start_next_req = get_ns();
-    // }
-    // if(idle_timestamp_iterator == TIMESTAMP_CTR_LIMIT){
-    //     for(int i =0; i < TIMESTAMP_CTR_LIMIT; i++){
-    //         log_info("Total time lost :%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_ctx);
-    //         log_info("Time spent sending response:%lld\n", idle_timestamps[i].after_response - idle_timestamps[i].after_ctx);
-    //         log_info("Time spent idling:%lld\n", idle_timestamps[i].start_next_req - idle_timestamps[i].after_response);
+    while (dispatcher_requests[cpu_nr_].requests[active_req].flag != READY);
 
-    //     }
-    //     idle_timestamp_iterator = 0;
-    // }
-    dispatcher_requests[cpu_nr_].flag = WAITING;
-    if (dispatcher_requests[cpu_nr_].category == PACKET)
+    /* Turn on to debug time lost in waiting for new req */
+    // if(likely(IS_FIRST_PACKET))
+    //     idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1);
+    // idle_timestamps[idle_timestamp_iterator].start_req = get_ns();
+
+    preempt_check[cpu_nr_].timestamp = rdtsc();
+    preempt_check[cpu_nr_].check = true;
+    if (dispatcher_requests[cpu_nr_].requests[active_req].category == PACKET)
     {
         if (unlikely(!IS_FIRST_PACKET))
         {
@@ -617,24 +588,31 @@ static inline void handle_fake_request(void)
     {
         handle_context();
     }
+    /* Turn on to debug time lost in waiting for new req */
+    // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
+
+    preempt_check[cpu_nr_].check = false;
 }
 
 static inline void finish_request(void)
 {
-    worker_responses[cpu_nr_].timestamp = dispatcher_requests[cpu_nr_].timestamp;
-    worker_responses[cpu_nr_].type = dispatcher_requests[cpu_nr_].type;
-    worker_responses[cpu_nr_].mbuf = dispatcher_requests[cpu_nr_].mbuf;
-    worker_responses[cpu_nr_].rnbl = cont;
-    worker_responses[cpu_nr_].category = CONTEXT;
-
+    worker_responses[cpu_nr_].responses[active_req].timestamp = dispatcher_requests[cpu_nr_].requests[active_req].timestamp;
+    worker_responses[cpu_nr_].responses[active_req].type = dispatcher_requests[cpu_nr_].requests[active_req].type;
+    worker_responses[cpu_nr_].responses[active_req].mbuf = dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
+    worker_responses[cpu_nr_].responses[active_req].rnbl = cont;
+    worker_responses[cpu_nr_].responses[active_req].category = CONTEXT;
     if (finished)
     {
-        worker_responses[cpu_nr_].flag = FINISHED;
+        worker_responses[cpu_nr_].responses[active_req].flag = FINISHED;
     }
     else
     {
-        worker_responses[cpu_nr_].flag = PREEMPTED;
+        worker_responses[cpu_nr_].responses[active_req].flag = PREEMPTED;
     }
+    dispatcher_requests[cpu_nr_].requests[active_req].flag = DONE;
+
+    /* Turn on to debug time lost in waiting for new req */
+    // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
 }
 
 void do_work(void)
@@ -652,8 +630,6 @@ void do_work(void)
 
     while (true)
     {
-        JOB_STARTED_AT = get_ns();
-
 #ifdef FAKE_WORK
         handle_fake_request();
         fake_eth_process_send();
@@ -664,5 +640,6 @@ void do_work(void)
         handle_request();
 #endif
         finish_request();
+        active_req = jbsq_get_next(active_req);
     }
 }
