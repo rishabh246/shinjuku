@@ -102,11 +102,20 @@ void do_fake_networking(void)
 	log_info("Load level:  %f\n", load_level);
 	log_info("Test started\n");
 
+	uint64_t total_packet = 0;
+
 	while (!INIT_FINISHED);
 	
 	while (true)
 	{
-
+		#if BENCHMARK_CREATE_NO_PACKET != -1
+			if (total_packet >= BENCHMARK_CREATE_NO_PACKET)
+				break;
+			
+			total_packet++;
+		#endif
+		
+		
 		while (networker_pointers.cnt != 0);
 
 		for (uint64_t t = 0; t < networker_pointers.free_cnt; t++)

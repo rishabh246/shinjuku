@@ -14,6 +14,8 @@
 #define SCHEDULE_METHOD              METHOD_CONCORD
 #define DB_NO_KEY                   100000
 
+// Set to -1 to run in infinite loop
+#define BENCHMARK_CREATE_NO_PACKET   -1
 
 // Schedule Methods
 #define METHOD_PI       0
@@ -21,8 +23,11 @@
 #define METHOD_NONE     2
 #define METHOD_CONCORD  3
 
+// Debug Methods
+#define LATENCY_DEBUG   1
+
 // Different workload mixes 
-#define BENCHMARK_TYPE       	        1 
+#define BENCHMARK_TYPE       	        0 
 
 #if BENCHMARK_TYPE == 0                      // 100% 100us.
 #define BENCHMARK_SMALL_PKT_SPIN   62   
