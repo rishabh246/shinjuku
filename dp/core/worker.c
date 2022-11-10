@@ -138,10 +138,12 @@ void print_stats(void){
     }
     log_info("Total number of context switches: %llu\n", num_yields);
 
+#if LATENCY_DEBUG == 1
     for(int i = 0; i <1048576; i++){
         if(results[i].latency)
             log_info("Request latency, slowdown: %llu : %llu\n", results[i].latency, results[i].slowdown);
     }
+#endif
 
 }
 
@@ -229,7 +231,6 @@ static void test_handler(struct dune_tf *tf)
 void concord_func()
 {
     // printf("Concord func called from tid %d\n", gettid());
-    
     if(concord_lock_counter != 0)
     {
         return;
@@ -448,8 +449,8 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     }
     case (DB_ITERATOR):
     {
-        // simpleloop(BENCHMARK_LARGE_PKT_SPIN); 
-        cncrd_leveldb_scan(db,roptions, 'musa');
+        simpleloop(BENCHMARK_LARGE_PKT_SPIN); 
+        // cncrd_leveldb_scan(db,roptions, 'musa');
         break;
     }
 
