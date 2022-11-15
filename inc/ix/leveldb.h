@@ -12,8 +12,8 @@
 static unsigned long long *mmap_file;
 static unsigned long long *randomized_keys;
 
-typedef char db_key[32];
-typedef char db_value[32];
+typedef char db_key[KEYSIZE];
+typedef char db_value[VALSIZE];
 
 // Type of Level-db operations
 typedef enum
@@ -69,19 +69,19 @@ static void check_db_sequential(leveldb_t *db, long num_keys, leveldb_readoption
 
     for (size_t i = 0; i < num_keys; i++)
     {
-        char keybuf[20], valbuf[20];
+        char keybuf[KEYSIZE], valbuf[VALSIZE];
         int len;
-        snprintf(keybuf, 20, "key%d", i);
-        snprintf(valbuf, 20, "val%d", i);
-        char *r = leveldb_get(db, roptions, keybuf, 20, &len, &db_err);
+        snprintf(keybuf, KEYSIZE, "key%d", i);
+        snprintf(valbuf, VALSIZE, "val%d", i);
+        char *r = leveldb_get(db, roptions, keybuf, KEYSIZE, &len, &db_err);
 
 		// printf("%s\n",r);
 
-		// if (db_err != NULL)
-		// {
-		// 	fprintf(stderr, "read fail. %s\n", keybuf);
-		// 	return (1);
-		// }
+		if (db_err != NULL)
+		{
+			fprintf(stderr, "read fail. %s\n", keybuf);
+			return (1);
+		}
     }
 }
 
@@ -93,10 +93,10 @@ static void prepare_simple_db(leveldb_t *db, long num_keys, leveldb_writeoptions
 
 	for (size_t i = 0; i < num_keys; i++)
 	{
-		char keybuf[20], valbuf[20];
-		snprintf(keybuf, 20, "key%d", i);
-		snprintf(valbuf, 20, "val%d", i);
-		leveldb_put(db, woptions, keybuf, 20, valbuf, 20, &db_err);
+		char keybuf[KEYSIZE], valbuf[VALSIZE];
+		snprintf(keybuf, KEYSIZE, "key%d", i);
+		snprintf(valbuf, VALSIZE, "val%d", i);
+		leveldb_put(db, woptions, keybuf, KEYSIZE, valbuf, VALSIZE, &db_err);
 
 		if (db_err != NULL)
 		{
@@ -115,10 +115,10 @@ static void prepare_complex_db(leveldb_t *db, long num_keys, leveldb_writeoption
 
 	for (size_t i = 0; i < num_keys; i++)
 	{
-		char keybuf[20], valbuf[20];
-		snprintf(keybuf, 20, "key%d", i);
-		snprintf(valbuf, 20, "val%d", i);
-		leveldb_put(db, woptions, keybuf, strlen(keybuf), valbuf, strlen(valbuf), &db_err);
+		char keybuf[KEYSIZE], valbuf[VALSIZE];
+		snprintf(keybuf, KEYSIZE, "key%d", i);
+		snprintf(valbuf, KEYSIZE, "val%d", i);
+		leveldb_put(db, woptions, keybuf, KEYSIZE, valbuf, VALSIZE, &db_err);
 
 		if (db_err != NULL)
 		{

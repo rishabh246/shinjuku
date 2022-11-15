@@ -156,8 +156,9 @@ struct db_req* generate_db_req(struct mbuf * temp)
 
 	if (req->type == DB_GET)
 	{
-		strcpy(req->key, "musakey");
-		strcpy(req->val, "musavalue");
+		int key_num = rand() % DB_NUM_KEYS;
+		snprintf(req->key, KEYSIZE, "key%d", key_num);
+		strcpy(req->val, "fakevalue");
 		req->ns = BENCHMARK_SMALL_PKT_NS;
 	} 
 	else if(req->type == DB_ITERATOR)
@@ -171,8 +172,9 @@ struct db_req* generate_db_req(struct mbuf * temp)
 	}
 	else if(req->type == DB_PUT)
 	{
-		strcpy(req->key, "musakey");
-		strcpy(req->val, "musavalue");
+		int key_num = rand() % DB_NUM_KEYS;
+		snprintf(req->key, KEYSIZE, "key%d", key_num);
+		snprintf(req->val, VALSIZE, "val%d", key_num);
 	}
 	else if (req->type == DB_SEEK)
 	{

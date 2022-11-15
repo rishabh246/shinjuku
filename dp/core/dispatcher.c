@@ -138,7 +138,6 @@ static inline void concord_preempt_worker(uint8_t i, uint64_t cur_time)
 {
 	if (preempt_check[i].check && (((cur_time - preempt_check[i].timestamp) / CPU_FREQ_GHZ) > PREEMPTION_DELAY))
 	{
-
 		// Avoid preempting more times.
 		concord_preempt_now = 1;
 		preempt_check[i].check = false;

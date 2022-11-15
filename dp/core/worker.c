@@ -419,17 +419,19 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 
     case (DB_GET):
     {
+        #if RUN_UBENCH == 1
         simpleloop(BENCHMARK_SMALL_PKT_SPIN);
-        // char *db_err = NULL;
-        // int read_len;
-
-        // PRE_PROTECTCALL;
-        // char *returned_value = leveldb_get(db, roptions,
-        //                         "key1", 4,
-        //                         &read_len, &db_err);
-        // POST_PROTECTCALL;
-
-
+        #else
+        int read_len = VALSIZE;
+        char* err;
+        char *returned_value = cncrd_leveldb_get(db, roptions,
+                                db_pkg->key, KEYSIZE,
+                                &read_len, &err);
+        if (err != NULL)
+		{
+			fprintf(stderr, "get fail. %s\n", db_pkg->key);
+		}
+        #endif
         break;
     }
     case (DB_DELETE):
@@ -449,8 +451,11 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     }
     case (DB_ITERATOR):
     {
+        #if RUN_UBENCH == 1
         simpleloop(BENCHMARK_LARGE_PKT_SPIN); 
-        // cncrd_leveldb_scan(db,roptions, 'musa');
+        #else
+        cncrd_leveldb_scan(db,roptions, 'musa');
+        #endif
         break;
     }
 
@@ -488,7 +493,6 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     {
         TEST_END_TIME = get_us();
         TEST_FINISHED = true;
-        print_stats();
     }
 
     if (type == DB_GET || type == DB_PUT){
