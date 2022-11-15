@@ -12,7 +12,7 @@
 #define BENCHMARK_STOP_AT_PACKET     1000000000000
 #define BENCHMARK_DURATION_US        1000000 * 10 
 #define SCHEDULE_METHOD              METHOD_CONCORD
-#define DB_NUM_KEYS                    15000
+#define DB_NUM_KEYS                  15000
 
 // Set to -1 to run in infinite loop
 #define BENCHMARK_CREATE_NO_PACKET   -1
