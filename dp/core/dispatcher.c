@@ -61,6 +61,7 @@ extern void yield_handler(void);
 #define CPU_FREQ_GHZ 3.3
 
 extern int concord_preempt_now;
+extern int concord_lock_counter;
 
 static void preempt_check_init(int num_workers)
 {

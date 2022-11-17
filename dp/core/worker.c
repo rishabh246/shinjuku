@@ -65,9 +65,17 @@
 #include "concord.h"
 #include "concord-leveldb.h"
 
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
+#define gettid() ((pid_t)syscall(SYS_gettid))
+
+
 bool PREEMPT_NOW = false;
 
 extern int concord_preempt_now;
+extern int concord_lock_counter;
 
 // ---- Added for tests ----
 extern uint64_t TEST_TOTAL_PACKETS_COUNTER;
@@ -130,10 +138,12 @@ void print_stats(void){
     }
     log_info("Total number of context switches: %llu\n", num_yields);
 
+#if LATENCY_DEBUG == 1
     for(int i = 0; i <1048576; i++){
         if(results[i].latency)
             log_info("Request latency, slowdown: %llu : %llu\n", results[i].latency, results[i].slowdown);
     }
+#endif
 
 }
 
@@ -155,6 +165,8 @@ extern int swapcontext_very_fast(ucontext_t *ouctx, ucontext_t *uctx);
 
 extern void dune_apic_eoi();
 extern int dune_register_intr_handler(int vector, dune_intr_cb cb);
+
+pid_t worker_tid;
 
 struct response
 {
@@ -218,6 +230,11 @@ static void test_handler(struct dune_tf *tf)
 
 void concord_func()
 {
+    // printf("Concord func called from tid %d\n", gettid());
+    if(concord_lock_counter != 0)
+    {
+        return;
+    }
     concord_preempt_now = 0;
 
     /* Turn on to benchmark timeliness of yields */
@@ -402,17 +419,19 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 
     case (DB_GET):
     {
+        #if RUN_UBENCH == 1
         simpleloop(BENCHMARK_SMALL_PKT_SPIN);
-        // char *db_err = NULL;
-        // int read_len;
-
-        // PRE_PROTECTCALL;
-        // char *returned_value = leveldb_get(db, roptions,
-        //                         "key1", 4,
-        //                         &read_len, &db_err);
-        // POST_PROTECTCALL;
-
-
+        #else
+        int read_len = VALSIZE;
+        char* err;
+        char *returned_value = cncrd_leveldb_get(db, roptions,
+                                db_pkg->key, KEYSIZE,
+                                &read_len, &err);
+        if (err != NULL)
+		{
+			fprintf(stderr, "get fail. %s\n", db_pkg->key);
+		}
+        #endif
         break;
     }
     case (DB_DELETE):
@@ -432,7 +451,11 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     }
     case (DB_ITERATOR):
     {
+        #if RUN_UBENCH == 1
         simpleloop(BENCHMARK_LARGE_PKT_SPIN); 
+        #else
+        cncrd_leveldb_scan(db,roptions, 'musa');
+        #endif
         break;
     }
 
@@ -470,7 +493,6 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     {
         TEST_END_TIME = get_us();
         TEST_FINISHED = true;
-        print_stats();
     }
 
     if (type == DB_GET || type == DB_PUT){
@@ -606,6 +628,10 @@ void do_work(void)
     // sure about vdso
     for (size_t i = 0; i < 50; i++)
         get_ns();
+
+    worker_tid = gettid();
+
+    printf("Worker %d started with tid %d\n", cpu_nr_, worker_tid);
 
     while (true)
     {
