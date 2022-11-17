@@ -60,8 +60,7 @@ extern void yield_handler(void);
 #define PREEMPTION_DELAY 5000
 #define CPU_FREQ_GHZ 3.3
 
-extern int concord_preempt_now;
-extern int concord_lock_counter;
+int * cpu_preempt_points [MAX_WORKERS] = {NULL};
 
 static void preempt_check_init(int num_workers)
 {
@@ -138,7 +137,7 @@ static inline void concord_preempt_worker(uint8_t i, uint64_t cur_time)
 	if (preempt_check[i].check && (((cur_time - preempt_check[i].timestamp) / CPU_FREQ_GHZ) > PREEMPTION_DELAY))
 	{
 		// Avoid preempting more times.
-		concord_preempt_now = 1;
+		*(cpu_preempt_points[i]) = 1;
 		preempt_check[i].check = false;
 	}
 }

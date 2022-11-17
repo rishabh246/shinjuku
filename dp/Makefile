@@ -103,7 +103,7 @@ DPDK_LIBS+=$(DPDK)/build/lib/librte_mempool.a
 DPDK_LIBS+=$(DPDK)/build/lib/librte_ring.a
 
 shinjuku: $(DEPENDENCY) $(OBJS) $(DUNE_LIB) ix.ld
-	$(LD) $(WRAP_FLAGS) $(LDFLAGS) -o shinjuku $(OBJS) -rdynamic $(DUNE_LIB)  $(DPDK_LIBS) $(LDLIBS) $(CONCORD_LIB)
+	$(LD) $(WRAP_FLAGS) $(LDFLAGS) -o shinjuku $(OBJS) -rdynamic $(DUNE_LIB)  $(DPDK_LIBS) $(LDLIBS)
 
 clean:
 	cp core/context_fast.S /tmp/context_fast.S
