@@ -38,7 +38,6 @@
 
 #include "helpers.h"
 #include "benchmark.h"
-#include <stdatomic.h>
 
 // ---- Added for tests ----
 extern uint64_t total_scheduled;

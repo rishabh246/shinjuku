@@ -10,7 +10,7 @@
 /* ----------------------------- */
 
 #define BENCHMARK_STOP_AT_PACKET     1000000000000
-#define BENCHMARK_DURATION_US        1000000 * 10 
+#define BENCHMARK_DURATION_US        1000000 * 60 
 #define SCHEDULE_METHOD              METHOD_CONCORD
 #define DB_NUM_KEYS                  15000
 
@@ -31,38 +31,22 @@
 
 #if RUN_UBENCH == 1
     // Different workload mixes 
-// Different workload mixes 
-    // Different workload mixes 
     #define BENCHMARK_TYPE    0 
     #if BENCHMARK_TYPE == 0                      // 100% 100us.
     #define BENCHMARK_SMALL_PKT_SPIN   62   
-#define BENCHMARK_SMALL_PKT_SPIN   62   
-    #define BENCHMARK_SMALL_PKT_SPIN   62   
     #define BENCHMARK_SMALL_PKT_NS     1000
-    #define BENCHMARK_LARGE_PKT_SPIN   6200  
-#define BENCHMARK_LARGE_PKT_SPIN   6200  
     #define BENCHMARK_LARGE_PKT_SPIN   6200  
     #define BENCHMARK_LARGE_PKT_NS     100000
     #define MU                         0.01
     #elif  BENCHMARK_TYPE == 1                  // 50% 1us, 50% 100us
     #define BENCHMARK_SMALL_PKT_SPIN   62   
-#define BENCHMARK_SMALL_PKT_SPIN   62   
-    #define BENCHMARK_SMALL_PKT_SPIN   62   
     #define BENCHMARK_SMALL_PKT_NS     1000
-    #define BENCHMARK_LARGE_PKT_SPIN   6200  
-#define BENCHMARK_LARGE_PKT_SPIN   6200  
     #define BENCHMARK_LARGE_PKT_SPIN   6200  
     #define BENCHMARK_LARGE_PKT_NS     100000
     #define MU                         0.0198                
-#define MU                         0.0198                
-    #define MU                         0.0198                
     #elif  BENCHMARK_TYPE == 2                  // 99.5% 0.5us, 0.5% 500us
     #define BENCHMARK_SMALL_PKT_SPIN   27 
-#define BENCHMARK_SMALL_PKT_SPIN   27 
-    #define BENCHMARK_SMALL_PKT_SPIN   27 
     #define BENCHMARK_SMALL_PKT_NS     500
-    #define BENCHMARK_LARGE_PKT_SPIN   30000 
-#define BENCHMARK_LARGE_PKT_SPIN   30000 
     #define BENCHMARK_LARGE_PKT_SPIN   30000 
     #define BENCHMARK_LARGE_PKT_NS     500000
     #define MU                         0.333611
