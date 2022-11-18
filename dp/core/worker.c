@@ -111,7 +111,7 @@ uint64_t JOB_STARTED_AT = 0;
 uint64_t total_scheduled = 0;
 
 /* Turn on to debug time lost in waiting for new req. ITERATOR_LIMIT must be power of 2*/
-#define ITERATOR_LIMIT 1
+#define ITERATOR_LIMIT 32768 * 4
 
 struct idle_timestamping {
     uint64_t start_req; // Timestamp when worker starts processing the job.
@@ -122,7 +122,7 @@ struct idle_timestamping {
 struct idle_timestamping idle_timestamps[ITERATOR_LIMIT] = {0};
 uint64_t idle_timestamp_iterator = 0;
 
-#define RESULTS_ITERATOR_LIMIT 1048576
+#define RESULTS_ITERATOR_LIMIT 1
 struct request_perf_results {
     uint64_t latency;
     uint64_t slowdown;
@@ -163,6 +163,18 @@ __thread ucontext_t *cont;
 __thread int cpu_nr_;
 __thread volatile uint8_t finished;
 __thread uint8_t active_req;
+
+
+__thread uint64_t concord_preempt_after_cycle = (5000 * CPU_FREQ_GHZ);
+__thread uint64_t concord_start_time;
+
+void concord_rdtsc_func()
+{
+    // printf("%lld\n", rdtsc() - concord_start_time);
+    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
+    concord_start_time = rdtsc();
+    swapcontext_very_fast(cont, &uctx_main);
+}
 
 // Added for leveldb
 extern uint8_t flag;
@@ -411,6 +423,8 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
                      :);
     DB_REQ_TYPE type = db_pkg->type;
     uint64_t iter_cnt = 0;
+
+    concord_start_time = rdtsc();
 
     switch (db_pkg->type)
     {

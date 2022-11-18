@@ -30,9 +30,17 @@ CONCORD_ROOT = $(ROOT_DIR)/../..
 CONCORD_LIB = $(CONCORD_ROOT)/src/lib/concord.a
 CONCORD_INC = $(CONCORD_ROOT)/src/lib
 
+# Libs
+# _ 	 ==> concord
+# _clear ==> without modifications
+# _rdtsc ==> with rdtsc pass
 BENCH_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/lib/concord_apileveldb.a
 BENCH_INC = $(CONCORD_ROOT)/benchmarks/leveldb/lib
 
+# Libs
+# _ 	 ==> concord
+# _clear ==> without modifications
+# _rdtsc ==> with rdtsc pass
 LEVELDB_LIB = $(CONCORD_ROOT)/benchmarks/leveldb/leveldb/concord_libleveldb.a
 LEVELDB_INC = $(CONCORD_ROOT)/benchmarks/leveldb/leveldb/include
 
