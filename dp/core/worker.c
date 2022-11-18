@@ -71,7 +71,7 @@
 
 #define gettid() ((pid_t)syscall(SYS_gettid))
 
-extern int * cpu_preempt_points [MAX_WORKERS];
+extern volatile int * cpu_preempt_points [MAX_WORKERS];
 
 __thread int concord_preempt_now;
 __thread int concord_lock_counter;
@@ -644,7 +644,6 @@ void do_work(void)
 
     printf("Worker %d started with tid %d\n", cpu_nr_, worker_tid);
 
-    printf("concord_preempt_now: %p\n", &concord_preempt_now);
     cpu_preempt_points[cpu_nr_] = &concord_preempt_now;
 
 

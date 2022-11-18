@@ -60,7 +60,7 @@ extern void yield_handler(void);
 #define PREEMPTION_DELAY 5000
 #define CPU_FREQ_GHZ 3.3
 
-int * cpu_preempt_points [MAX_WORKERS] = {NULL};
+volatile int * cpu_preempt_points [MAX_WORKERS] = {NULL};
 
 static void preempt_check_init(int num_workers)
 {
