@@ -168,11 +168,18 @@ __thread uint8_t active_req;
 __thread uint64_t concord_preempt_after_cycle = (5000 * CPU_FREQ_GHZ);
 __thread uint64_t concord_start_time;
 
+extern bool INIT_FINISHED;
+
 void concord_rdtsc_func()
 {
-    // printf("%lld\n", rdtsc() - concord_start_time);
-    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
     concord_start_time = rdtsc();
+
+    if (concord_lock_counter != 0 || unlikely(!INIT_FINISHED))
+    {
+        return;
+    }
+    
+    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
     swapcontext_very_fast(cont, &uctx_main);
 }
 
@@ -423,7 +430,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
                      :);
     DB_REQ_TYPE type = db_pkg->type;
     uint64_t iter_cnt = 0;
-
+    
     concord_start_time = rdtsc();
 
     switch (db_pkg->type)
