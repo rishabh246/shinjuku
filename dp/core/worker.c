@@ -646,7 +646,6 @@ void do_work(void)
 
     cpu_preempt_points[cpu_nr_] = &concord_preempt_now;
 
-
     while (true)
     {
 #ifdef FAKE_WORK
