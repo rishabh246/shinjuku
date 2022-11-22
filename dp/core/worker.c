@@ -71,11 +71,22 @@
 
 #define gettid() ((pid_t)syscall(SYS_gettid))
 
+extern volatile int * cpu_preempt_points [MAX_WORKERS];
 
-bool PREEMPT_NOW = false;
+__thread int concord_preempt_now;
+__thread int concord_lock_counter;
 
-extern int concord_preempt_now;
-extern int concord_lock_counter;
+void concord_disable()
+{
+    // printf("Disabling concord\n");
+    concord_lock_counter -= 1;
+}
+
+void concord_enable()
+{
+    // printf("Enabling concord\n");
+    concord_lock_counter += 1;
+}
 
 // ---- Added for tests ----
 extern uint64_t TEST_TOTAL_PACKETS_COUNTER;
@@ -632,6 +643,8 @@ void do_work(void)
     worker_tid = gettid();
 
     printf("Worker %d started with tid %d\n", cpu_nr_, worker_tid);
+
+    cpu_preempt_points[cpu_nr_] = &concord_preempt_now;
 
     while (true)
     {
