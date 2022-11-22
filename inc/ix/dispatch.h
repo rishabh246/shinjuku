@@ -54,13 +54,11 @@ struct mempool mcell_mempool __attribute((aligned(64)));
 #define JBSQ_LEN    0x02
 
 #if JBSQ_LEN == 0x02
-static inline uint8_t jbsq_get_next(uint8_t iter){
-        return iter^1; // This is for JBSQ_LEN = 2
+static inline void jbsq_get_next(uint8_t* iter){
+        *iter =  *iter^1; // This is for JBSQ_LEN = 2
 }
 #elif JBSQ_LEN == 0x01
-static inline uint8_t jbsq_get_next(uint8_t iter){
-        return iter;
-}
+static inline void jbsq_get_next(uint8_t* iter){}
 #endif
 
 struct worker_response
@@ -98,6 +96,12 @@ struct jbsq_preemption {
         uint8_t check;
         char make_it_64_bytes[55]; 
 };__attribute__((packed, aligned(64)));
+
+struct worker_state {
+        uint8_t next_push;
+        uint8_t next_pop;
+        uint8_t occupancy;
+} __attribute__((packed));
 
 struct networker_pointers_t
 {
@@ -280,3 +284,4 @@ volatile struct jbsq_preemption preempt_check[MAX_WORKERS];
 volatile struct networker_pointers_t networker_pointers;
 volatile struct jbsq_worker_response worker_responses[MAX_WORKERS];
 volatile struct jbsq_dispatcher_request dispatcher_requests[MAX_WORKERS];
+struct worker_state dispatch_states[MAX_WORKERS];

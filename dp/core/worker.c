@@ -658,6 +658,6 @@ void do_work(void)
         handle_request();
 #endif
         finish_request();
-        active_req = jbsq_get_next(active_req);
+        jbsq_get_next(&active_req);
     }
 }
