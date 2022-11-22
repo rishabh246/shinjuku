@@ -92,10 +92,12 @@ void do_networking(void)
 /**
  * do_fake_networking - implements fake network logic with a given benchmark
  */
-void do_fake_networking(void)
+void do_fake_networking(int num_cpus)
 {
-	srand(time(NULL));
+	// Adjust the load level depending on the number of CPUs.
+	load_level = load_level * (num_cpus-2);
 
+	srand(time(NULL));
 	TEST_STARTED = true;
 	log_info("Generating fake work\n");
 	assert(load_level && "No load level passed, exiting");
