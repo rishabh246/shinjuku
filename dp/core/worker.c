@@ -251,7 +251,7 @@ void concord_func()
     /* Turn on to benchmark timeliness of yields */
     // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
 
-    swapcontext_very_fast(cont, &uctx_main);
+    swapcontext_fast_to_control(cont, &uctx_main);
 }
 
 /**
