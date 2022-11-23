@@ -48,8 +48,8 @@
 #include "helpers.h"
 #include "benchmark.h"
 
-extern bool INIT_FINISHED;
-bool TEST_STARTED = false;
+extern volatile bool INIT_FINISHED;
+volatile bool TEST_STARTED = false;
 
 #ifdef LOAD_LEVEL // Passed during compilation
 	double load_level = LOAD_LEVEL/100.0; 

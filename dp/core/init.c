@@ -106,7 +106,7 @@ pthread_t tid[MAX_WORKERS];
 // Flag that controls whether interrupts are disabled during memory allocation.
 uint8_t flag;
 
-bool INIT_FINISHED = false;
+volatile bool INIT_FINISHED = false;
 
 struct init_vector_t {
 	const char *name;
