@@ -31,9 +31,8 @@
 
 #define MAX_WORKERS   18
 
-#define INACTIVE    0x00
-#define READY       0x01
-#define DONE        0x02 
+#define WAITING     0x00
+#define ACTIVE      0x01
 
 #define RUNNING     0x00
 #define FINISHED    0x01
@@ -51,16 +50,6 @@ struct mempool task_mempool __attribute((aligned(64)));
 struct mempool_datastore mcell_datastore;
 struct mempool mcell_mempool __attribute((aligned(64)));
 
-#define JBSQ_LEN    0x02
-
-#if JBSQ_LEN == 0x02
-static inline void jbsq_get_next(uint8_t* iter){
-        *iter =  *iter^1; // This is for JBSQ_LEN = 2
-}
-#elif JBSQ_LEN == 0x01
-static inline void jbsq_get_next(uint8_t* iter){}
-#endif
-
 struct worker_response
 {
         uint64_t flag;
@@ -72,10 +61,6 @@ struct worker_response
         char make_it_64_bytes[30];
 } __attribute__((packed, aligned(64)));
 
-struct jbsq_worker_response {
-        struct worker_response responses[JBSQ_LEN];
-}__attribute__((packed, aligned(64)));
-
 struct dispatcher_request
 {
         uint64_t flag;
@@ -86,22 +71,6 @@ struct dispatcher_request
         uint64_t timestamp;
         char make_it_64_bytes[30];
 } __attribute__((packed, aligned(64)));
-
-struct jbsq_dispatcher_request {
-        struct dispatcher_request requests[JBSQ_LEN];
-}__attribute__((packed, aligned(64)));
-
-struct jbsq_preemption {
-        uint64_t timestamp;
-        uint8_t check;
-        char make_it_64_bytes[55]; 
-};__attribute__((packed, aligned(64)));
-
-struct worker_state {
-        uint8_t next_push;
-        uint8_t next_pop;
-        uint8_t occupancy;
-} __attribute__((packed));
 
 struct networker_pointers_t
 {
@@ -280,8 +249,8 @@ static inline int smart_tskq_dequeue(struct task_queue * tq, void ** rnbl_ptr,
         return -1;
 }
 
-volatile struct jbsq_preemption preempt_check[MAX_WORKERS];
+uint64_t timestamps[MAX_WORKERS];
+uint8_t preempt_check[MAX_WORKERS];
 volatile struct networker_pointers_t networker_pointers;
-volatile struct jbsq_worker_response worker_responses[MAX_WORKERS];
-volatile struct jbsq_dispatcher_request dispatcher_requests[MAX_WORKERS];
-struct worker_state dispatch_states[MAX_WORKERS];
+volatile struct worker_response worker_responses[MAX_WORKERS];
+volatile struct dispatcher_request dispatcher_requests[MAX_WORKERS];

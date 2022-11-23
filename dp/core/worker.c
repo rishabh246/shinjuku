@@ -71,9 +71,6 @@
 
 #define gettid() ((pid_t)syscall(SYS_gettid))
 
-extern volatile int * cpu_preempt_points [MAX_WORKERS];
-
-__thread int concord_preempt_now;
 __thread int concord_lock_counter;
 
 void concord_disable()
@@ -162,7 +159,6 @@ __thread ucontext_t uctx_main;
 __thread ucontext_t *cont;
 __thread int cpu_nr_;
 __thread volatile uint8_t finished;
-__thread uint8_t active_req;
 
 // Added for leveldb
 extern uint8_t flag;
@@ -176,6 +172,8 @@ extern int swapcontext_very_fast(ucontext_t *ouctx, ucontext_t *uctx);
 
 extern void dune_apic_eoi();
 extern int dune_register_intr_handler(int vector, dune_intr_cb cb);
+
+void fake_eth_process_send(void);
 
 pid_t worker_tid;
 
@@ -192,22 +190,14 @@ struct request
 };
 
 /**
- * myresponse_init - allocates global response datastore
+ * response_init - allocates global response datastore
  */
-int myresponse_init(void)
+int response_init(void)
 {
     return mempool_create_datastore(&response_datastore, 128000,
                                     sizeof(struct myresponse), 1,
                                     MEMPOOL_DEFAULT_CHUNKSIZE,
                                     "response");
-}
-
-/**
- * response_init - allocates global response datastore
- */
-int response_init(void)
-{
-    return myresponse_init();
     // return mempool_create_datastore(&response_datastore, 128000,
     //                                 sizeof(struct response), 1,
     //                                 MEMPOOL_DEFAULT_CHUNKSIZE,
@@ -227,26 +217,7 @@ int response_init_cpu(void)
 static void test_handler(struct dune_tf *tf)
 {
     asm volatile("cli" :::);
-
-    #if SCHEDULE_METHOD == METHOD_YIELD
-    log_err("Interrupt fired \n");
-    #endif
     dune_apic_eoi();
-
-    /* Turn on to benchmark timeliness of yields */
-    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
-
-    swapcontext_fast_to_control(cont, &uctx_main);
-}
-
-void concord_func()
-{
-    // printf("Concord func called from tid %d\n", gettid());
-    if(concord_lock_counter != 0)
-    {
-        return;
-    }
-    concord_preempt_now = 0;
 
     /* Turn on to benchmark timeliness of yields */
     // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
@@ -263,62 +234,41 @@ void concord_func()
 static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
                          uint32_t lsw_id)
 {
-    asm volatile("sti" ::
-                     :);
+    asm volatile ("sti":::);
 
-    struct ip_tuple *id = (struct ip_tuple *)((uint64_t)msw_id << 32 | lsw_id);
-    void *data = (void *)((uint64_t)msw << 32 | lsw);
+    struct ip_tuple * id = (struct ip_tuple *) ((uint64_t) msw_id << 32 | lsw_id);
+    void * data = (void *)((uint64_t) msw << 32 | lsw);
     int ret;
 
-    struct request *req = (struct request *)data;
+    struct request * req = (struct request *) data;
 
-    // Added for leveldb
-    // leveldb_readoptions_t *readoptions = leveldb_readoptions_create();
-    // leveldb_iterator_t *iter = leveldb_create_iterator(db, readoptions);
-    // for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter); leveldb_iter_next(iter))
-    // {
-    //     char *retr_key;
-    //     size_t klen;
-    //     retr_key = leveldb_iter_key(iter, &klen);
-    //     if (req->runNs > 0)
-    //         break;
-    // }
-    // leveldb_iter_destroy(iter);
-    // leveldb_readoptions_destroy(readoptions);
+    uint64_t i = 0;
+    do {
+            asm volatile ("nop");
+            i++;
+    } while ( i / 0.233 < req->runNs);
 
-    // uint64_t i = 0;
-    // do
-    // {
-    //     asm volatile("nop");
-    //     i++;
-    // } while (i / 0.233 < req->runNs);
-
-    asm volatile("cli" ::
-                     :);
-
-    struct response *resp = mempool_alloc(&percpu_get(response_pool));
-    if (!resp)
-    {
-        log_warn("Cannot allocate response buffer\n");
-        finished = true;
-        swapcontext_very_fast(cont, &uctx_main);
+    asm volatile ("cli":::);
+    struct response * resp = mempool_alloc(&percpu_get(response_pool));
+    if (!resp) {
+            log_warn("Cannot allocate response buffer\n");
+            finished = true;
+            swapcontext_very_fast(cont, &uctx_main);
     }
 
     resp->genNs = req->genNs;
     resp->runNs = req->runNs;
     struct ip_tuple new_id = {
-        .src_ip = id->dst_ip,
-        .dst_ip = id->src_ip,
-        .src_port = id->dst_port,
-        .dst_port = id->src_port};
+            .src_ip = id->dst_ip,
+            .dst_ip = id->src_ip,
+            .src_port = id->dst_port,
+            .dst_port = id->src_port
+    };
 
     ret = udp_send((void *)resp, sizeof(struct response), &new_id,
-                   (uint64_t)resp);
-    // ret = udp_send_one((void *)resp, sizeof(struct response), &new_id,
-    //             (uint64_t) resp);
-
+                    (uint64_t) resp);
     if (ret)
-        log_warn("udp_send failed with error %d\n", ret);
+            log_warn("udp_send failed with error %d\n", ret);
 
     finished = true;
     swapcontext_very_fast(cont, &uctx_main);
@@ -329,20 +279,19 @@ static inline void parse_packet(struct mbuf *pkt, void **data_ptr,
 {
     log_info("new packet \n");
     // Quickly parse packet without doing checks
-    struct eth_hdr *ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
-    struct ip_hdr *iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
+    struct eth_hdr * ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
+    struct ip_hdr *  iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
     int hdrlen = iphdr->header_len * sizeof(uint32_t);
-    struct udp_hdr *udphdr = mbuf_nextd_off(iphdr, struct udp_hdr *,
-                                            hdrlen);
+    struct udp_hdr * udphdr = mbuf_nextd_off(iphdr, struct udp_hdr *,
+                                                hdrlen);
     // Get data and udp header
     (*data_ptr) = mbuf_nextd(udphdr, void *);
     uint16_t len = ntoh16(udphdr->len);
 
-    if (unlikely(!mbuf_enough_space(pkt, udphdr, len)))
-    {
-        log_warn("worker: not enough space in mbuf\n");
-        (*data_ptr) = NULL;
-        return;
+    if (unlikely(!mbuf_enough_space(pkt, udphdr, len))) {
+            log_warn("worker: not enough space in mbuf\n");
+            (*data_ptr) = NULL;
+            return;
     }
 
     (*id_ptr) = mbuf_mtod(pkt, struct ip_tuple *);
@@ -350,22 +299,16 @@ static inline void parse_packet(struct mbuf *pkt, void **data_ptr,
     (*id_ptr)->dst_ip = ntoh32(iphdr->dst_addr.addr);
     (*id_ptr)->src_port = ntoh16(udphdr->src_port);
     (*id_ptr)->dst_port = ntoh16(udphdr->dst_port);
-    pkt->done = (void *)0xDEADBEEF;
+    pkt->done = (void *) 0xDEADBEEF;
 }
 
 static inline void init_worker(void)
 {
     cpu_nr_ = percpu_get(cpu_nr) - 2;
-    active_req = 0;
-    for(int i = 0; i < JBSQ_LEN; i++){
-        worker_responses[cpu_nr_].responses[i].flag = PROCESSED;
-    }
-
+    worker_responses[cpu_nr_].flag = PROCESSED;
     dune_register_intr_handler(PREEMPT_VECTOR, test_handler);
-
     eth_process_reclaim();
-    asm volatile("cli" ::
-                     :);
+    asm volatile ("cli":::);
 }
 
 static inline void handle_new_packet(void)
@@ -373,7 +316,7 @@ static inline void handle_new_packet(void)
     int ret;
     void *data;
     struct ip_tuple *id;
-    struct mbuf *pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
+    struct mbuf * pkt = (struct mbuf *) dispatcher_requests[cpu_nr_].mbuf;
     parse_packet(pkt, &data, &id);
 
     log_info("parse packet");
@@ -384,7 +327,7 @@ static inline void handle_new_packet(void)
         uint32_t lsw = (uint64_t)data & 0x00000000FFFFFFFF;
         uint32_t msw_id = ((uint64_t)id & 0xFFFFFFFF00000000) >> 32;
         uint32_t lsw_id = (uint64_t)id & 0x00000000FFFFFFFF;
-        cont = dispatcher_requests[cpu_nr_].requests[active_req].rnbl;
+        cont = dispatcher_requests[cpu_nr_].rnbl;
         getcontext_fast(cont);
         set_context_link(cont, &uctx_main);
         makecontext(cont, (void (*)(void))generic_work, 4, msw, lsw,
@@ -522,13 +465,10 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 static inline void handle_fake_new_packet(void)
 {
     int ret;
-    struct mbuf *pkt;
-    // struct custom_payload *req;
     struct db_req *req;
 
-    pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
+    struct mbuf * pkt = (struct mbuf *) dispatcher_requests[cpu_nr_].mbuf;
 
-    // req = mbuf_mtod(pkt, struct custom_payload *);
     req = mbuf_mtod(pkt, struct db_req *);
 
     if (req == NULL)
@@ -538,11 +478,11 @@ static inline void handle_fake_new_packet(void)
         return;
     }
 
-    cont = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].rnbl;
+    cont = dispatcher_requests[cpu_nr_].rnbl;
     getcontext_fast(cont);
     set_context_link(cont, &uctx_main);
 
-    makecontext(cont, (void (*)(void))do_db_generic_work, 2, req, dispatcher_requests[cpu_nr_].requests[active_req].timestamp);
+    makecontext(cont, (void (*)(void))do_db_generic_work, 2, req, dispatcher_requests[cpu_nr_].timestamp);
 
     finished = false;
     ret = swapcontext_very_fast(&uctx_main, cont);
@@ -557,41 +497,39 @@ static inline void handle_context(void)
 {
     int ret;
     finished = false;
-    cont = dispatcher_requests[cpu_nr_].requests[active_req].rnbl;
+    cont = dispatcher_requests[cpu_nr_].rnbl;
     set_context_link(cont, &uctx_main);
     ret = swapcontext_fast(&uctx_main, cont);
-    if (ret)
-    {
-        log_err("Failed to swap to existing context\n");
-        exit(-1);
+    if (ret) {
+            log_err("Failed to swap to existing context\n");
+            exit(-1);
     }
 }
 
 static inline void handle_request(void)
 {
-    while (dispatcher_requests[cpu_nr_].requests[active_req].flag != READY);
-    preempt_check[cpu_nr_].timestamp = rdtsc();
-    preempt_check[cpu_nr_].check = true;
-    if (dispatcher_requests[cpu_nr_].requests[active_req].category == PACKET)
-        handle_new_packet();
+    while (dispatcher_requests[cpu_nr_].flag == WAITING);
+    dispatcher_requests[cpu_nr_].flag = WAITING;
+    if (dispatcher_requests[cpu_nr_].category == PACKET)
+            handle_new_packet();
     else
-        handle_context();
+            handle_context();
 }
 
 bool IS_FIRST_PACKET = false;
 
 static inline void handle_fake_request(void)
 {
-    while (dispatcher_requests[cpu_nr_].requests[active_req].flag != READY);
+    while (dispatcher_requests[cpu_nr_].flag == WAITING);
 
     /* Turn on to debug time lost in waiting for new req */
     // if(likely(IS_FIRST_PACKET))
     //     idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1);
     // idle_timestamps[idle_timestamp_iterator].start_req = get_ns();
 
-    preempt_check[cpu_nr_].timestamp = rdtsc();
-    preempt_check[cpu_nr_].check = true;
-    if (dispatcher_requests[cpu_nr_].requests[active_req].category == PACKET)
+    dispatcher_requests[cpu_nr_].flag = WAITING;
+
+    if (dispatcher_requests[cpu_nr_].category == PACKET)
     {
         if (unlikely(!IS_FIRST_PACKET))
         {
@@ -606,26 +544,23 @@ static inline void handle_fake_request(void)
     }
     /* Turn on to debug time lost in waiting for new req */
     // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
-
-    preempt_check[cpu_nr_].check = false;
 }
 
 static inline void finish_request(void)
 {
-    worker_responses[cpu_nr_].responses[active_req].timestamp = dispatcher_requests[cpu_nr_].requests[active_req].timestamp;
-    worker_responses[cpu_nr_].responses[active_req].type = dispatcher_requests[cpu_nr_].requests[active_req].type;
-    worker_responses[cpu_nr_].responses[active_req].mbuf = dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
-    worker_responses[cpu_nr_].responses[active_req].rnbl = cont;
-    worker_responses[cpu_nr_].responses[active_req].category = CONTEXT;
-    if (finished)
-    {
-        worker_responses[cpu_nr_].responses[active_req].flag = FINISHED;
-    }
-    else
-    {
-        worker_responses[cpu_nr_].responses[active_req].flag = PREEMPTED;
-    }
-    dispatcher_requests[cpu_nr_].requests[active_req].flag = DONE;
+        worker_responses[cpu_nr_].timestamp = \
+                        dispatcher_requests[cpu_nr_].timestamp;
+        worker_responses[cpu_nr_].type = \
+                        dispatcher_requests[cpu_nr_].type;
+        worker_responses[cpu_nr_].mbuf = \
+                        dispatcher_requests[cpu_nr_].mbuf;
+        worker_responses[cpu_nr_].rnbl = cont;
+        worker_responses[cpu_nr_].category = CONTEXT;
+        if (finished) {
+                worker_responses[cpu_nr_].flag = FINISHED;
+        } else {
+                worker_responses[cpu_nr_].flag = PREEMPTED;
+        }
 
     /* Turn on to debug time lost in waiting for new req */
     // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
@@ -644,8 +579,6 @@ void do_work(void)
 
     printf("Worker %d started with tid %d\n", cpu_nr_, worker_tid);
 
-    cpu_preempt_points[cpu_nr_] = &concord_preempt_now;
-
     while (true)
     {
 #ifdef FAKE_WORK
@@ -658,6 +591,5 @@ void do_work(void)
         handle_request();
 #endif
         finish_request();
-        jbsq_get_next(&active_req);
     }
 }
