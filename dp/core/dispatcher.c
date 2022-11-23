@@ -40,18 +40,17 @@
 #include "benchmark.h"
 
 // ---- Added for tests ----
-extern uint64_t total_scheduled;
-extern bool TEST_STARTED;
-extern bool IS_FIRST_PACKET;
-extern bool INIT_FINISHED;
+extern volatile bool TEST_STARTED;
+extern volatile bool IS_FIRST_PACKET;
+extern volatile bool INIT_FINISHED;
 void print_stats(void);
 
-uint64_t TEST_START_TIME;
-uint64_t TEST_END_TIME;
-uint64_t TEST_RCVD_SMALL_PACKETS;
-uint64_t TEST_RCVD_BIG_PACKETS;
-uint64_t TEST_TOTAL_PACKETS_COUNTER; 
-bool 	 TEST_FINISHED = false;
+volatile uint64_t TEST_START_TIME;
+volatile uint64_t TEST_END_TIME;
+volatile uint64_t TEST_RCVD_SMALL_PACKETS;
+volatile uint64_t TEST_RCVD_BIG_PACKETS;
+volatile uint64_t TEST_TOTAL_PACKETS_COUNTER; 
+volatile bool 	 TEST_FINISHED = false;
 
 extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 extern void yield_handler(void);
