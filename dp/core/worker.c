@@ -89,12 +89,14 @@ void concord_enable()
 }
 
 // ---- Added for tests ----
-extern uint64_t TEST_TOTAL_PACKETS_COUNTER;
-extern uint64_t TEST_RCVD_SMALL_PACKETS;
-extern uint64_t TEST_RCVD_BIG_PACKETS;
-extern uint64_t TEST_START_TIME;
-extern uint64_t TEST_END_TIME;
-extern bool TEST_FINISHED;
+extern volatile uint64_t TEST_TOTAL_PACKETS_COUNTER;
+extern volatile uint64_t TEST_RCVD_SMALL_PACKETS;
+extern volatile uint64_t TEST_RCVD_BIG_PACKETS;
+extern volatile uint64_t TEST_START_TIME;
+extern volatile uint64_t TEST_END_TIME;
+extern volatile bool TEST_FINISHED;
+
+volatile bool IS_FIRST_PACKET = false;
 
 // Added for leveldb support
 extern leveldb_t *db;
@@ -108,7 +110,6 @@ extern leveldb_writeoptions_t *woptions;
 
 // Local Variables
 uint64_t JOB_STARTED_AT = 0;
-uint64_t total_scheduled = 0;
 
 /* Turn on to debug time lost in waiting for new req. ITERATOR_LIMIT must be power of 2*/
 #define ITERATOR_LIMIT 32768 * 4
@@ -598,8 +599,6 @@ static inline void handle_request(void)
     else
         handle_context();
 }
-
-bool IS_FIRST_PACKET = false;
 
 static inline void handle_fake_request(void)
 {
