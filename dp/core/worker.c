@@ -251,7 +251,7 @@ void concord_func()
     /* Turn on to benchmark timeliness of yields */
     // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
 
-    swapcontext_very_fast(cont, &uctx_main);
+    swapcontext_fast_to_control(cont, &uctx_main);
 }
 
 /**
@@ -658,6 +658,6 @@ void do_work(void)
         handle_request();
 #endif
         finish_request();
-        active_req = jbsq_get_next(active_req);
+        jbsq_get_next(&active_req);
     }
 }

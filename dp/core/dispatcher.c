@@ -60,9 +60,10 @@ extern void yield_handler(void);
 #define PREEMPTION_DELAY 5000
 #define CPU_FREQ_GHZ 3.3
 
+uint16_t num_workers = 0;
 volatile int * cpu_preempt_points [MAX_WORKERS] = {NULL};
 
-static void preempt_check_init(int num_workers)
+static void preempt_check_init()
 {
 	int i;
 	for (i = 0; i < num_workers; i++){
@@ -71,7 +72,17 @@ static void preempt_check_init(int num_workers)
 	}
 }
 
-static void requests_init(int num_workers) {
+static void dispatch_states_init()
+{
+	int i;
+	for (i = 0; i < num_workers; i++){
+		dispatch_states[i].next_push = 0;
+		dispatch_states[i].next_pop = 0;
+		dispatch_states[i].occupancy = 0;
+	}
+}
+
+static void requests_init() {
 	int i;
 	for (i=0; i < num_workers; i++){
 		for(uint8_t j = 0; j < JBSQ_LEN; j++)
@@ -104,22 +115,45 @@ static inline void handle_preempted(uint8_t i, uint8_t active_req)
 	worker_responses[i].responses[active_req].flag = PROCESSED;
 }
 
-static inline void dispatch_request(uint8_t i, uint8_t active_req, uint64_t cur_time)
+static inline int get_idle_core(){
+	uint8_t min_occupancy = JBSQ_LEN;
+	int idle = -1;
+	for (int i = 0; i < num_workers; i++){
+		if(!dispatch_states[i].occupancy)
+			return i;
+		else if (dispatch_states[i].occupancy < min_occupancy){
+			min_occupancy = dispatch_states[i].occupancy;
+			idle = i;
+		}
+	}
+	return idle;
+}
+static inline void dispatch_requests(uint64_t cur_time)
 {
-	void *rnbl, *mbuf;
-	uint8_t type, category;
-	uint64_t timestamp;
+	while(1){
+		int idle = get_idle_core();
+		if(idle == -1)
+			return;
 
-	if (smart_tskq_dequeue(tskq, &rnbl, &mbuf, &type,
-						   &category, &timestamp, cur_time))
-		return;
+		void *rnbl, *mbuf;
+		uint8_t type, category;
+		uint64_t timestamp;
 
-	dispatcher_requests[i].requests[active_req].rnbl = rnbl;
-	dispatcher_requests[i].requests[active_req].mbuf = mbuf;
-	dispatcher_requests[i].requests[active_req].type = type;
-	dispatcher_requests[i].requests[active_req].category = category;
-	dispatcher_requests[i].requests[active_req].timestamp = timestamp;
-	dispatcher_requests[i].requests[active_req].flag = READY;
+		if (smart_tskq_dequeue(tskq, &rnbl, &mbuf, &type,
+							&category, &timestamp, cur_time))
+			return;
+		
+		uint8_t active_req = dispatch_states[idle].next_push;
+		dispatcher_requests[idle].requests[active_req].rnbl = rnbl;
+		dispatcher_requests[idle].requests[active_req].mbuf = mbuf;
+		dispatcher_requests[idle].requests[active_req].type = type;
+		dispatcher_requests[idle].requests[active_req].category = category;
+		dispatcher_requests[idle].requests[active_req].timestamp = timestamp;
+		dispatcher_requests[idle].requests[active_req].flag = READY;
+		jbsq_get_next(&(dispatch_states[idle].next_push));
+		dispatch_states[idle].occupancy++;
+
+	}
 }
 
 static inline void preempt_worker(uint8_t i, uint64_t cur_time)
@@ -142,7 +176,7 @@ static inline void concord_preempt_worker(uint8_t i, uint64_t cur_time)
 	}
 }
 
-static inline void handle_worker(uint8_t active_req, uint8_t i, uint64_t cur_time)
+static inline void handle_worker(uint8_t i, uint64_t cur_time)
 {
 	#if (SCHEDULE_METHOD == METHOD_PI)
 	preempt_worker(i, cur_time);
@@ -151,17 +185,20 @@ static inline void handle_worker(uint8_t active_req, uint8_t i, uint64_t cur_tim
 	concord_preempt_worker(i, cur_time);
 	#endif
 
-	if (dispatcher_requests[i].requests[active_req].flag != READY)
+	if (dispatcher_requests[i].requests[dispatch_states[i].next_pop].flag != READY)
 	{
-		if (worker_responses[i].responses[active_req].flag == FINISHED)
+		if (worker_responses[i].responses[dispatch_states[i].next_pop].flag == FINISHED)
 		{
-			handle_finished(i, active_req);
+			handle_finished(i, dispatch_states[i].next_pop);
+			jbsq_get_next(&(dispatch_states[i].next_pop));
+			dispatch_states[i].occupancy--;
 		}
-		else if (worker_responses[i].responses[active_req].flag == PREEMPTED)
+		else if (worker_responses[i].responses[dispatch_states[i].next_pop].flag == PREEMPTED)
 		{
-			handle_preempted(i, active_req);
+			handle_preempted(i, dispatch_states[i].next_pop);
+			jbsq_get_next(&(dispatch_states[i].next_pop));
+			dispatch_states[i].occupancy--;
 		}
-		dispatch_request(i, active_req, cur_time);
 	} 
 }
 
@@ -210,13 +247,15 @@ static inline void handle_networker(uint64_t cur_time)
  */
 void do_dispatching(int num_cpus)
 {
-	uint8_t i,j;
+	uint8_t i;
 	uint64_t cur_time;
 
 	while (!INIT_FINISHED);
 	
-	preempt_check_init(num_cpus - 2);
-	requests_init(num_cpus-2);
+	num_workers = num_cpus-2;
+	preempt_check_init();
+	dispatch_states_init();
+	requests_init();
 	bool flag = true;
 
 	while (1)
@@ -233,13 +272,11 @@ void do_dispatching(int num_cpus)
 			break;
 		}
 
-		for(i = 0; i < JBSQ_LEN; i++){
-			cur_time = rdtsc();
-			for (j = 0; j < num_cpus - 2; j++){
-				handle_worker(i, j, cur_time);
-			}
-			handle_networker(cur_time);
+		cur_time = rdtsc();
+		for (i = 0; i < num_cpus - 2; i++){
+			handle_worker(i, cur_time);
 		}
-		
+		handle_networker(cur_time);
+		dispatch_requests(cur_time);
 	}
 }
