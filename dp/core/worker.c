@@ -112,7 +112,7 @@ extern leveldb_writeoptions_t *woptions;
 uint64_t JOB_STARTED_AT = 0;
 
 /* Turn on to debug time lost in waiting for new req. ITERATOR_LIMIT must be power of 2*/
-#define ITERATOR_LIMIT 32768 * 4
+#define ITERATOR_LIMIT 1
 
 struct idle_timestamping {
     uint64_t start_req; // Timestamp when worker starts processing the job.
@@ -123,7 +123,7 @@ struct idle_timestamping {
 struct idle_timestamping idle_timestamps[ITERATOR_LIMIT] = {0};
 uint64_t idle_timestamp_iterator = 0;
 
-#define RESULTS_ITERATOR_LIMIT 1
+#define RESULTS_ITERATOR_LIMIT 1048576
 struct request_perf_results {
     uint64_t latency;
     uint64_t slowdown;
@@ -169,7 +169,7 @@ __thread uint8_t active_req;
 __thread uint64_t concord_preempt_after_cycle = (5000 * CPU_FREQ_GHZ);
 __thread uint64_t concord_start_time;
 
-extern bool INIT_FINISHED;
+extern volatile bool INIT_FINISHED;
 
 void concord_rdtsc_func()
 {
