@@ -108,9 +108,12 @@ extern leveldb_writeoptions_t *woptions;
 #define PREEMPT_VECTOR 0xf2
 #define CPU_FREQ_GHZ 3.3
 
+<<<<<<< HEAD
 // Local Variables
 uint64_t JOB_STARTED_AT = 0;
 
+=======
+>>>>>>> d3ce4c7dedda26354b4989510323d58cc3281a16
 /* Turn on to debug time lost in waiting for new req. ITERATOR_LIMIT must be power of 2*/
 #define ITERATOR_LIMIT 1
 
@@ -271,7 +274,7 @@ void concord_func()
     /* Turn on to benchmark timeliness of yields */
     // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
 
-    swapcontext_very_fast(cont, &uctx_main);
+    swapcontext_fast_to_control(cont, &uctx_main);
 }
 
 /**
@@ -666,7 +669,6 @@ void do_work(void)
 
     cpu_preempt_points[cpu_nr_] = &concord_preempt_now;
 
-
     while (true)
     {
 #ifdef FAKE_WORK
@@ -679,6 +681,6 @@ void do_work(void)
         handle_request();
 #endif
         finish_request();
-        active_req = jbsq_get_next(active_req);
+        jbsq_get_next(&active_req);
     }
 }

@@ -1,0 +1,68 @@
+diff --git a/lib/librte_eal/linuxapp/kni/ethtool/igb/e1000_phy.c b/lib/librte_eal/linuxapp/kni/ethtool/igb/e1000_phy.c
+index df22470..38a6755 100644
+--- a/lib/librte_eal/linuxapp/kni/ethtool/igb/e1000_phy.c
++++ b/lib/librte_eal/linuxapp/kni/ethtool/igb/e1000_phy.c
+@@ -3300,13 +3300,13 @@ s32 e1000_read_phy_reg_mphy(struct e1000_hw *hw, u32 address, u32 *data)
+ 	*data = E1000_READ_REG(hw, E1000_MPHY_DATA);
+ 
+ 	/* Disable access to mPHY if it was originally disabled */
+-	if (locked)
++	if (locked) {
+ 		ready = e1000_is_mphy_ready(hw);
+ 		if (!ready)
+ 			return -E1000_ERR_PHY;
+ 		E1000_WRITE_REG(hw, E1000_MPHY_ADDR_CTRL,
+ 				E1000_MPHY_DIS_ACCESS);
+-
++	}
+ 	return E1000_SUCCESS;
+ }
+ 
+@@ -3365,13 +3365,13 @@ s32 e1000_write_phy_reg_mphy(struct e1000_hw *hw, u32 address, u32 data,
+ 	E1000_WRITE_REG(hw, E1000_MPHY_DATA, data);
+ 
+ 	/* Disable access to mPHY if it was originally disabled */
+-	if (locked)
++	if (locked) {
+ 		ready = e1000_is_mphy_ready(hw);
+ 		if (!ready)
+ 			return -E1000_ERR_PHY;
+ 		E1000_WRITE_REG(hw, E1000_MPHY_ADDR_CTRL,
+ 				E1000_MPHY_DIS_ACCESS);
+-
++	}
+ 	return E1000_SUCCESS;
+ }
+ 
+diff --git a/lib/librte_eal/linuxapp/kni/ethtool/ixgbe/ixgbe_82599.c b/lib/librte_eal/linuxapp/kni/ethtool/ixgbe/ixgbe_82599.c
+index 017dfe1..c6f4130 100644
+--- a/lib/librte_eal/linuxapp/kni/ethtool/ixgbe/ixgbe_82599.c
++++ b/lib/librte_eal/linuxapp/kni/ethtool/ixgbe/ixgbe_82599.c
+@@ -867,12 +867,13 @@ s32 ixgbe_setup_mac_link_82599(struct ixgbe_hw *hw,
+ 	    link_mode == IXGBE_AUTOC_LMS_KX4_KX_KR_SGMII) {
+ 		/* Set KX4/KX/KR support according to speed requested */
+ 		autoc &= ~(IXGBE_AUTOC_KX4_KX_SUPP_MASK | IXGBE_AUTOC_KR_SUPP);
+-		if (speed & IXGBE_LINK_SPEED_10GB_FULL)
++		if (speed & IXGBE_LINK_SPEED_10GB_FULL) {
+ 			if (orig_autoc & IXGBE_AUTOC_KX4_SUPP)
+ 				autoc |= IXGBE_AUTOC_KX4_SUPP;
+ 			if ((orig_autoc & IXGBE_AUTOC_KR_SUPP) &&
+ 			    (hw->phy.smart_speed_active == false))
+ 				autoc |= IXGBE_AUTOC_KR_SUPP;
++		}
+ 		if (speed & IXGBE_LINK_SPEED_1GB_FULL)
+ 			autoc |= IXGBE_AUTOC_KX_SUPP;
+ 	} else if ((pma_pmd_1g == IXGBE_AUTOC_1G_SFI) &&
+diff --git a/mk/toolchain/gcc/rte.vars.mk b/mk/toolchain/gcc/rte.vars.mk
+index ff70f3d..b4884ab 100644
+--- a/mk/toolchain/gcc/rte.vars.mk
++++ b/mk/toolchain/gcc/rte.vars.mk
+@@ -99,5 +99,8 @@ ifeq ($(shell test $(GCC_VERSION) -lt 47 && echo 1), 1)
+ WERROR_FLAGS += -Wno-uninitialized
+ endif
+ 
++WERROR_FLAGS += -Wno-uninitialized
++WERROR_FLAGS += -Wno-format-truncation -Wno-implicit-fallthrough
++
+ export CC AS AR LD OBJCOPY OBJDUMP STRIP READELF
+ export TOOLCHAIN_CFLAGS TOOLCHAIN_LDFLAGS TOOLCHAIN_ASFLAGS
