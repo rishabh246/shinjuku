@@ -14,6 +14,9 @@ sudo ./deps/dpdk/tools/dpdk_nic_bind.py -u 83:00.0
 make -s -C deps/dune
 make -s -C deps/pcidma
 make -s -C deps/dpdk config T=x86_64-native-linuxapp-gcc
+cd deps/dpdk
+    git apply ../dpdk.mk.patch
+cd ../../
 make -s -C deps/dpdk
 
 # Insert kernel modules
