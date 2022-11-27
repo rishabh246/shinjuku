@@ -108,12 +108,6 @@ extern leveldb_writeoptions_t *woptions;
 #define PREEMPT_VECTOR 0xf2
 #define CPU_FREQ_GHZ 3.3
 
-<<<<<<< HEAD
-// Local Variables
-uint64_t JOB_STARTED_AT = 0;
-
-=======
->>>>>>> d3ce4c7dedda26354b4989510323d58cc3281a16
 /* Turn on to debug time lost in waiting for new req. ITERATOR_LIMIT must be power of 2*/
 #define ITERATOR_LIMIT 1
 
