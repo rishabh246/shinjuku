@@ -185,9 +185,9 @@ struct db_req* generate_db_req(struct mbuf * temp)
 	}
 
 	// Wait for given inter-arrival time
-	// uint64_t wait_time_ns = get_random_expo(MU*load_level) * 1000;
-	// uint64_t start_time = get_ns();
-	// while(get_ns() - start_time < wait_time_ns);
+	uint64_t wait_time_ns = get_random_expo(MU*load_level) * 1000;
+	uint64_t start_time = get_ns();
+	while(get_ns() - start_time < wait_time_ns);
 	req->ts = get_ns();
 	return req;
 }
