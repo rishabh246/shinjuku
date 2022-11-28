@@ -62,7 +62,6 @@
 #include "benchmark.h"
 #include <sys/stat.h>
 #include <fcntl.h>
-#include "concord.h"
 #include "concord-leveldb.h"
 
 #include <sys/types.h>
