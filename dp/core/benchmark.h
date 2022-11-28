@@ -9,13 +9,13 @@
 // 2 -> None (Cause Hol-block)
 /* ----------------------------- */
 
-#define BENCHMARK_STOP_AT_PACKET     1000000000000
-#define BENCHMARK_DURATION_US        1000000 * 60 
+#define BENCHMARK_STOP_AT_PACKET     6000
+#define BENCHMARK_DURATION_US        1000000 * 10 
 #define SCHEDULE_METHOD              METHOD_CONCORD
 #define DB_NUM_KEYS                  15000
 
 // Set to -1 to run in infinite loop
-#define BENCHMARK_CREATE_NO_PACKET   -1
+#define BENCHMARK_CREATE_NO_PACKET   1001
 
 // Schedule Methods
 #define METHOD_PI       0
@@ -24,10 +24,10 @@
 #define METHOD_CONCORD  3
 
 // Debug Methods
-#define LATENCY_DEBUG   1
+#define LATENCY_DEBUG   0
 
 // If 0, runs leveldb. If 1 runs simpleloop
-#define RUN_UBENCH      0  
+#define RUN_UBENCH      1  
 
 #if RUN_UBENCH == 1
     // Different workload mixes 

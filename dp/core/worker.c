@@ -161,24 +161,7 @@ __thread int cpu_nr_;
 __thread volatile uint8_t finished;
 __thread uint8_t active_req;
 
-
-__thread uint64_t concord_preempt_after_cycle = (5000 * CPU_FREQ_GHZ);
-__thread uint64_t concord_start_time;
-
 extern volatile bool INIT_FINISHED;
-
-void concord_rdtsc_func()
-{
-    concord_start_time = rdtsc();
-
-    if (concord_lock_counter != 0 || unlikely(!INIT_FINISHED))
-    {
-        return;
-    }
-    
-    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
-    swapcontext_very_fast(cont, &uctx_main);
-}
 
 // Added for leveldb
 extern uint8_t flag;
@@ -428,8 +411,6 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
     DB_REQ_TYPE type = db_pkg->type;
     uint64_t iter_cnt = 0;
     
-    concord_start_time = rdtsc();
-
     switch (db_pkg->type)
     {
     case (DB_PUT):
@@ -599,7 +580,6 @@ static inline void handle_request(void)
 static inline void handle_fake_request(void)
 {
     while (dispatcher_requests[cpu_nr_].requests[active_req].flag != READY);
-
     /* Turn on to debug time lost in waiting for new req */
     // if(likely(IS_FIRST_PACKET))
     //     idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1);
@@ -658,7 +638,7 @@ void do_work(void)
 
     worker_tid = gettid();
 
-    printf("Worker %d started with tid %d\n", cpu_nr_, worker_tid);
+    log_info("Worker %d started with tid %d\n", cpu_nr_, worker_tid);
 
     cpu_preempt_points[cpu_nr_] = &concord_preempt_now;
 
