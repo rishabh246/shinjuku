@@ -40,6 +40,11 @@
 #define PREEMPTED   0x02
 #define PROCESSED   0x03
 
+// Dispatcher job states
+#define IDLE 0
+#define ONGOING 1
+#define COMPLETED 2
+
 #define NOCONTENT   0x00
 #define PACKET      0x01
 #define CONTEXT     0x02
@@ -164,7 +169,7 @@ struct task_queue
         struct task * tail;
 };
         
-struct task_queue tskq[CFG_MAX_PORTS];
+struct task_queue tskq;
 
 static inline void tskq_enqueue_head(struct task_queue * tq, void * rnbl,
                                      void * mbuf, uint8_t type,

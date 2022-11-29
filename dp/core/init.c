@@ -481,7 +481,8 @@ int main(int argc, char *argv[])
 	flag = 1;
 
 	log_info("Init Leveldb - with prefilled random key-values\n");
-
+	uint64_t start_time = get_us();
+	while(get_us() - start_time < 2*1000000);
 	INIT_FINISHED = true;
 
   do_dispatching(CFG.num_cpus);
