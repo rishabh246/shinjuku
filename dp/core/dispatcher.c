@@ -225,6 +225,19 @@ static inline void dispatch_requests(uint64_t cur_time)
 							&category, &timestamp))
 			return;
 		
+		
+		#if DISPATCHER_DO_WORK == 1
+		if(category == PACKET && dispatcher_job_status != ONGOING){
+			dispatcher_job.rnbl = rnbl;
+			dispatcher_job.mbuf = mbuf;
+			dispatcher_job.type = type;
+			dispatcher_job.category = category;
+			dispatcher_job.timestamp = timestamp;
+			dispatcher_job_status = ONGOING;
+			continue;
+		}
+		#endif
+
 		uint8_t active_req = dispatch_states[idle].next_push;
 		dispatcher_requests[idle].requests[active_req].rnbl = rnbl;
 		dispatcher_requests[idle].requests[active_req].mbuf = mbuf;
@@ -574,10 +587,12 @@ void do_dispatching(int num_cpus)
 		}
 		handle_networker(cur_time);
 		dispatch_requests(cur_time);
+	#if DISPATCHER_DO_WORK == 1
 		if(epoch_slack > dispatcher_work_thresh){
 			epoch_slack-= dispatcher_work_thresh;
 			dispatcher_do_work(cur_time);
 		}
+	#endif
 
 		// Turn on to measure dispatching latencies
 		// dispatcher_timestamps[dispatcher_timestamp_iterator].end = rdtsc();
