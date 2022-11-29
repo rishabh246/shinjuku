@@ -119,10 +119,4 @@ clean:
 	cp /tmp/context_fast.S core/context_fast.S
 
 dist-clean: clean
-<<<<<<< Updated upstream
 	rm *~
-=======
-	rm *~
-
-
->>>>>>> Stashed changes
