@@ -641,7 +641,7 @@ void do_work(void)
     log_info("Worker %d started with tid %d\n", cpu_nr_, worker_tid);
 
     cpu_preempt_points[cpu_nr_] = &concord_preempt_now;
-
+    while(!INIT_FINISHED);
     while (true)
     {
 #ifdef FAKE_WORK
