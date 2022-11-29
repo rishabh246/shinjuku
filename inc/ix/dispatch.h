@@ -234,6 +234,41 @@ static inline int tskq_dequeue(struct task_queue * tq, void ** rnbl_ptr,
         return 0;
 }
 
+static inline int tskq_dequeue_category(struct task_queue * tq, void ** rnbl_ptr,
+                                void ** mbuf, uint8_t *type, uint8_t *category,
+                                uint64_t *timestamp, uint8_t required_category){
+        struct task* curr = tq->head;
+        struct task* prev = NULL;
+        int found = 0;
+        while(curr != NULL){
+                if(curr->category == required_category){
+                        found = 1;
+                        break;
+                }
+                prev = curr;
+                curr = curr->next;
+        }
+        if(found){
+                (*rnbl_ptr) = curr->runnable;
+                (*mbuf) = curr->mbuf;
+                (*type) = curr->type;
+                (*category) = curr->category;
+                (*timestamp) = curr->timestamp;
+                struct task * tsk = prev;
+                if(curr == tq->head)
+                        tq->head = tq->head->next;
+                else
+                        prev->next = curr->next;
+
+                mempool_free(&task_mempool, curr);
+                if (tq->head == NULL)
+                        tq->tail = NULL;
+                return 0;
+        }     
+        return -1;
+
+
+}
 static inline uint64_t get_queue_timestamp(struct task_queue * tq, uint64_t * timestamp)
 {
         if (tq->head == NULL)

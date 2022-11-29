@@ -224,19 +224,6 @@ static inline void dispatch_requests(uint64_t cur_time)
 		if (tskq_dequeue(&tskq, &rnbl, &mbuf, &type,
 							&category, &timestamp))
 			return;
-		
-		
-		#if DISPATCHER_DO_WORK == 1
-		if(category == PACKET && dispatcher_job_status != ONGOING){
-			dispatcher_job.rnbl = rnbl;
-			dispatcher_job.mbuf = mbuf;
-			dispatcher_job.type = type;
-			dispatcher_job.category = category;
-			dispatcher_job.timestamp = timestamp;
-			dispatcher_job_status = ONGOING;
-			continue;
-		}
-		#endif
 
 		uint8_t active_req = dispatch_states[idle].next_push;
 		dispatcher_requests[idle].requests[active_req].rnbl = rnbl;
@@ -500,13 +487,11 @@ static inline void dispatcher_finish_request(void)
 static inline void dispatcher_handle_fake_request(uint64_t cur_time)
 {
 	if(dispatcher_job_status != ONGOING) {
-		if(tskq.head == NULL || tskq.head->category == CONTEXT)
-			return;
-
 		void *rnbl, *mbuf;
 		uint8_t type, category;
 		uint64_t timestamp;
-		tskq_dequeue(&tskq, &rnbl, &mbuf, &type,&category, &timestamp);	
+		if(tskq_dequeue_category(&tskq, &rnbl, &mbuf, &type,&category, &timestamp, PACKET))
+			return;
 		dispatcher_job.rnbl = rnbl;
 		dispatcher_job.mbuf = mbuf;
 		dispatcher_job.type = type;
