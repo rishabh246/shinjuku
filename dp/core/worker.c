@@ -93,6 +93,7 @@ extern volatile uint64_t TEST_START_TIME;
 extern volatile uint64_t TEST_END_TIME;
 extern volatile bool TEST_FINISHED;
 
+extern volatile bool INIT_FINISHED;
 volatile bool IS_FIRST_PACKET = false;
 
 // Added for leveldb support
@@ -577,7 +578,7 @@ void do_work(void)
     worker_tid = gettid();
 
     printf("Worker %d started with tid %d\n", cpu_nr_, worker_tid);
-
+    while(!INIT_FINISHED);
     while (true)
     {
 #ifdef FAKE_WORK
