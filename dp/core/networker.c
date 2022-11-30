@@ -73,8 +73,7 @@ void do_networking(void)
 		num_recv = eth_process_recv();
 		if (num_recv == 0)
 			continue;
-		while (networker_pointers.cnt != 0)
-			;
+		while (networker_pointers.cnt != 0);
 		for (i = 0; i < networker_pointers.free_cnt; i++)
 		{
 			mbuf_free(networker_pointers.pkts[i]);
@@ -152,6 +151,8 @@ struct db_req* generate_db_req(struct mbuf * temp)
 	req-> type = (rand() % 2) ? DB_GET : DB_ITERATOR;
 	#elif BENCHMARK_TYPE == 2
 	req-> type = (rand() % 1000) < 995 ? DB_GET : DB_ITERATOR;
+	#elif (BENCHMARK_TYPE == 3) || (BENCHMARK_TYPE == 4)
+	req-> type = DB_GET;
 	#else
   assert(0 && "Unknown benchmark type, quitting");
 	#endif
@@ -161,7 +162,11 @@ struct db_req* generate_db_req(struct mbuf * temp)
 		int key_num = rand() % DB_NUM_KEYS;
 		snprintf(req->key, KEYSIZE, "key%d", key_num);
 		strcpy(req->val, "fakevalue");
+		#if BENCHMARK_TYPE == 4
+		req->ns = (uint64_t)(get_random_expo(MU) * 1000);
+		#else
 		req->ns = BENCHMARK_SMALL_PKT_NS;
+		#endif 
 	} 
 	else if(req->type == DB_ITERATOR)
 	{
