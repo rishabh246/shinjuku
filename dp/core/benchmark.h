@@ -53,6 +53,12 @@
     #define BENCHMARK_LARGE_PKT_SPIN   30000 
     #define BENCHMARK_LARGE_PKT_NS     500000
     #define MU                         0.333611
+    #elif  (BENCHMARK_TYPE == 3) || (BENCHMARK_TYPE == 4)    // Fixed 1us or exp 1us
+    #define BENCHMARK_SMALL_PKT_SPIN   62   
+    #define BENCHMARK_SMALL_PKT_NS     1000
+    #define BENCHMARK_LARGE_PKT_SPIN   6200  
+    #define BENCHMARK_LARGE_PKT_NS     100000
+    #define MU                         1  
     #endif
 #else
     #define BENCHMARK_TYPE 1 // Always. We only work with a 50-50 split
