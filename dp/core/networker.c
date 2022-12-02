@@ -148,11 +148,11 @@ struct db_req* generate_db_req(struct mbuf * temp)
 	#if BENCHMARK_TYPE == 0
 	req->type = DB_ITERATOR; 
 	#elif BENCHMARK_TYPE == 1
-	req-> type = (rand() % 2) ? DB_GET : DB_ITERATOR;
+	req->type = (rand() % 2) ? DB_GET : DB_ITERATOR;
 	#elif BENCHMARK_TYPE == 2
-	req-> type = (rand() % 1000) < 995 ? DB_GET : DB_ITERATOR;
+	req->type = (rand() % 1000) < 995 ? DB_GET : DB_ITERATOR;
 	#elif (BENCHMARK_TYPE == 3) || (BENCHMARK_TYPE == 4)
-	req-> type = DB_GET;
+	req->type = DB_GET;
 	#else
   assert(0 && "Unknown benchmark type, quitting");
 	#endif
@@ -190,9 +190,9 @@ struct db_req* generate_db_req(struct mbuf * temp)
 	}
 
 	// Wait for given inter-arrival time
-	uint64_t wait_time_ns = get_random_expo(MU*load_level) * 1000;
-	uint64_t start_time = get_ns();
-	while(get_ns() - start_time < wait_time_ns);
+	uint64_t wait_time_cycles = (1000 * CPU_FREQ_GHZ)/(MU*load_level);
+	uint64_t start_time = rdtsc();
+	while(rdtsc() - start_time < wait_time_cycles);
 	req->ts = get_ns();
 	return req;
 }

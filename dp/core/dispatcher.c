@@ -55,14 +55,13 @@ volatile uint64_t TEST_START_TIME;
 volatile uint64_t TEST_END_TIME;
 volatile uint64_t TEST_RCVD_SMALL_PACKETS;
 volatile uint64_t TEST_RCVD_BIG_PACKETS;
-volatile uint64_t TEST_TOTAL_PACKETS_COUNTER; 
+volatile uint64_t TEST_TOTAL_PACKETS_COUNTER = 0; 
 volatile bool 	 TEST_FINISHED = false;
 
 extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 
 #define PREEMPT_VECTOR 0xf2
 #define PREEMPTION_DELAY 5000
-#define CPU_FREQ_GHZ 3.3
 
 uint16_t num_workers = 0;
 volatile int * cpu_preempt_points [MAX_WORKERS] = {NULL};

@@ -13,6 +13,7 @@
 #define BENCHMARK_DURATION_US        1000000 * 10 
 #define SCHEDULE_METHOD              METHOD_CONCORD
 #define DB_NUM_KEYS                  15000
+#define CPU_FREQ_GHZ                 3.3
 
 // Set to -1 to run in infinite loop
 #define BENCHMARK_CREATE_NO_PACKET   -1
@@ -30,7 +31,7 @@
 #define DISPATCHER_DO_WORK 1
 
 // If 0, runs leveldb. If 1 runs simpleloop
-#define RUN_UBENCH      0  
+#define RUN_UBENCH      1  
 
 #if RUN_UBENCH == 1
     // Different workload mixes 
@@ -58,7 +59,7 @@
     #define BENCHMARK_SMALL_PKT_NS     1000
     #define BENCHMARK_LARGE_PKT_SPIN   6200  
     #define BENCHMARK_LARGE_PKT_NS     100000
-    #define MU                         1  
+    #define MU                         1.0  
     #endif
 #else
     #define BENCHMARK_TYPE 1 // Always. We only work with a 50-50 split
