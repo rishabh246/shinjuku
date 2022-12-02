@@ -104,7 +104,6 @@ extern leveldb_readoptions_t *roptions;
 extern leveldb_writeoptions_t *woptions;
 
 #define PREEMPT_VECTOR 0xf2
-#define CPU_FREQ_GHZ 3.3
 
 // Local Variables
 uint64_t JOB_STARTED_AT = 0;

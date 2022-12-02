@@ -49,7 +49,7 @@ volatile uint64_t TEST_START_TIME;
 volatile uint64_t TEST_END_TIME;
 volatile uint64_t TEST_RCVD_SMALL_PACKETS;
 volatile uint64_t TEST_RCVD_BIG_PACKETS;
-volatile uint64_t TEST_TOTAL_PACKETS_COUNTER; 
+volatile uint64_t TEST_TOTAL_PACKETS_COUNTER = 0; 
 volatile bool 	 TEST_FINISHED = false;
 
 extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
@@ -57,7 +57,6 @@ extern void yield_handler(void);
 
 #define PREEMPT_VECTOR 0xf2
 #define PREEMPTION_DELAY 5000
-#define CPU_FREQ_GHZ 3.3
 
 static void timestamp_init(int num_workers)
 {
