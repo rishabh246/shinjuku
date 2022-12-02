@@ -9,9 +9,11 @@ for load in "${load_levels[@]}"
     echo "Running benchmark for load level = $load"
     sudo ./build_and_run.sh $load > temp.txt
     sed -i '$ d' temp.txt 
+    RPS=$(grep "Dispatched pkts" temp.txt | cut -d ":" -f6)
+    echo "Achieved rate is $RPS"
 
     echo "Calculating latency"
-    grep "latency, slowdown" temp.txt | cut -d ":" -f5 > latency.txt 
+    grep "latency, slowdown" temp.txt | cut -d ":" -f5 > latency.txt
     python3 ../scripts/percentile.py latency.txt temp.csv
     LATENCY="$load,$(grep "$PERCENTILE," temp.csv | cut -d "," -f2)"
     echo $LATENCY >> latency.csv
