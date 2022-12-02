@@ -51,6 +51,7 @@ volatile uint64_t TEST_RCVD_SMALL_PACKETS;
 volatile uint64_t TEST_RCVD_BIG_PACKETS;
 volatile uint64_t TEST_TOTAL_PACKETS_COUNTER = 0; 
 volatile bool 	 TEST_FINISHED = false;
+uint64_t dispatched_pkts = 0;
 
 extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 extern void yield_handler(void);
@@ -158,7 +159,7 @@ static inline void handle_networker(uint64_t cur_time)
 			{
 				continue;
 			}
-
+			dispatched_pkts++;
 			ret = context_alloc(&cont);
 			if (unlikely(ret))
 			{
@@ -210,6 +211,7 @@ void do_dispatching(int num_cpus)
 			log_info("Benchmark - %d big, %d small packets\n", TEST_RCVD_BIG_PACKETS, TEST_RCVD_SMALL_PACKETS);
 			log_info("Benchmark - Time elapsed (us): %llu\n", get_us() - TEST_START_TIME);
 			print_stats();
+			log_info("Dispatched pkts: %llu\n", dispatched_pkts);
 			log_info("Dispatcher exiting\n");
 			flag = false;
 			break;
