@@ -211,9 +211,9 @@ void do_dispatching(int num_cpus)
 			log_info("Benchmark - Total number of packets %d \n", TEST_TOTAL_PACKETS_COUNTER);
 			log_info("Benchmark - %d big, %d small packets\n", TEST_RCVD_BIG_PACKETS, TEST_RCVD_SMALL_PACKETS);
 			log_info("Benchmark - Time elapsed (us): %llu\n",  TEST_END_TIME- TEST_START_TIME);
+			uint64_t rate =  dispatched_pkts*1000/(TEST_END_TIME- TEST_START_TIME);
+			log_info("Dispatched pkts, rate: %llu : %llu KRps\n", dispatched_pkts,rate);
 			print_stats();
-			uint64_t rate =  dispatched_pkts/(TEST_END_TIME- TEST_START_TIME);
-			log_info("Dispatched pkts: %llu, %llu MRps\n", dispatched_pkts,rate);
 			log_info("Dispatcher exiting\n");
 			flag = false;
 			break;
