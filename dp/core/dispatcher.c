@@ -548,16 +548,18 @@ void do_dispatching(int num_cpus)
 	{
 		if (flag && TEST_STARTED && IS_FIRST_PACKET && (TEST_FINISHED || ((get_us() - TEST_START_TIME) > BENCHMARK_DURATION_US )))
 		{
+			TEST_END_TIME = get_us();
 			log_info("\n\n ----------- Benchmark FINISHED ----------- \n");
 			log_info("Benchmark - Total number of packets %d \n", TEST_TOTAL_PACKETS_COUNTER);
 			log_info("Benchmark - %d big, %d small packets\n", TEST_RCVD_BIG_PACKETS, TEST_RCVD_SMALL_PACKETS);
-			log_info("Benchmark - Time elapsed (us): %llu\n", get_us() - TEST_START_TIME);
+			log_info("Benchmark - Time elapsed (us): %llu\n",  TEST_END_TIME- TEST_START_TIME);
 			print_stats();
-			log_info("Dispatched pkts: %llu\n", dispatched_pkts);
 			for(int i = 0; i <DISPATCHER_STATS_ITERATOR_LIMIT; i++){
 				if(dispatcher_timestamps[i].start)
 					log_info("Dispatching latency: %llu\n", dispatcher_timestamps[i].end-dispatcher_timestamps[i].start);
 			}
+			uint64_t rate =  dispatched_pkts/(TEST_END_TIME- TEST_START_TIME);
+			log_info("Dispatched pkts: %llu, %llu MRps\n", dispatched_pkts,rate);
 			log_info("Dispatcher exiting\n");
 			flag = false;
 			break;
