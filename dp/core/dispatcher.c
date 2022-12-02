@@ -560,8 +560,6 @@ void do_dispatching(int num_cpus)
 				if(dispatcher_timestamps[i].start)
 					log_info("Dispatching latency: %llu\n", dispatcher_timestamps[i].end-dispatcher_timestamps[i].start);
 			}
-			uint64_t rate =  dispatched_pkts/(TEST_END_TIME- TEST_START_TIME);
-			log_info("Dispatched pkts: %llu, %llu MRps\n", dispatched_pkts,rate);
 			log_info("Dispatcher exiting\n");
 			flag = false;
 			break;
