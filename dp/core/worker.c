@@ -120,7 +120,7 @@ struct idle_timestamping {
 struct idle_timestamping idle_timestamps[ITERATOR_LIMIT] = {0};
 uint64_t idle_timestamp_iterator = 0;
 
-#ifdef LATENCY_DEBUG
+#if LATENCY_DEBUG == 1
 #define RESULTS_ITERATOR_LIMIT 1048576
 struct request_perf_results {
     uint64_t latency;
@@ -439,7 +439,7 @@ static void do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
 
     TEST_TOTAL_PACKETS_COUNTER += 1;
     
-    #ifdef LATENCY_DEBUG
+    #if LATENCY_DEBUG == 1
     /* Turn on to get results */
     uint64_t cur_time = rdtsc();
     uint64_t elapsed_time = cur_time - start_time;
