@@ -117,6 +117,7 @@ struct idle_timestamping {
 };
 struct idle_timestamping idle_timestamps[ITERATOR_LIMIT] = {0};
 uint64_t idle_timestamp_iterator = 0;
+#define MAGIC_CPU 0
 
 #if LATENCY_DEBUG == 1
 #define RESULTS_ITERATOR_LIMIT 1048576
@@ -234,7 +235,8 @@ static void test_handler(struct dune_tf *tf)
     dune_apic_eoi();
 
     /* Turn on to benchmark timeliness of yields */
-    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
+    if(cpu_nr_ == MAGIC_CPU)
+        idle_timestamps[idle_timestamp_iterator].before_ctx = rdtsc();
 
     swapcontext_fast_to_control(cont, &uctx_main);
 }
@@ -249,7 +251,8 @@ void concord_func()
     concord_preempt_now = 0;
 
     /* Turn on to benchmark timeliness of yields */
-    // idle_timestamps[idle_timestamp_iterator].before_ctx = get_ns();
+    if(cpu_nr_ == MAGIC_CPU)
+        idle_timestamps[idle_timestamp_iterator].before_ctx = rdtsc();
 
     swapcontext_fast_to_control(cont, &uctx_main);
 }
@@ -584,9 +587,13 @@ static inline void handle_fake_request(void)
 {
     while (dispatcher_requests[cpu_nr_].requests[active_req].flag != READY);
     /* Turn on to debug time lost in waiting for new req */
-    // if(likely(IS_FIRST_PACKET))
-    //     idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1);
-    // idle_timestamps[idle_timestamp_iterator].start_req = get_ns();
+    if(likely(IS_FIRST_PACKET)){
+        if(cpu_nr_ == MAGIC_CPU){
+            idle_timestamp_iterator = (idle_timestamp_iterator+1) & (ITERATOR_LIMIT-1);
+        }
+    }
+    if(cpu_nr_ == MAGIC_CPU)
+        idle_timestamps[idle_timestamp_iterator].start_req = rdtsc();
 
     preempt_check[cpu_nr_].timestamp = rdtsc();
     preempt_check[cpu_nr_].check = true;
@@ -604,7 +611,8 @@ static inline void handle_fake_request(void)
         handle_context();
     }
     /* Turn on to debug time lost in waiting for new req */
-    // idle_timestamps[idle_timestamp_iterator].after_ctx = get_ns();
+    if(cpu_nr_ == MAGIC_CPU)
+        idle_timestamps[idle_timestamp_iterator].after_ctx = rdtsc();
 
     preempt_check[cpu_nr_].check = false;
 }
@@ -627,7 +635,8 @@ static inline void finish_request(void)
     dispatcher_requests[cpu_nr_].requests[active_req].flag = DONE;
 
     /* Turn on to debug time lost in waiting for new req */
-    // idle_timestamps[idle_timestamp_iterator].after_response = get_ns();
+    if(cpu_nr_ == MAGIC_CPU)
+        idle_timestamps[idle_timestamp_iterator].after_response = rdtsc();
 }
 
 void do_work(void)
