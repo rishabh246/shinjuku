@@ -11,7 +11,7 @@
 
 #define BENCHMARK_STOP_AT_PACKET     1000000000000
 #define BENCHMARK_DURATION_US        1000000 * 10 
-#define SCHEDULE_METHOD              METHOD_CONCORD
+#define SCHEDULE_METHOD              METHOD_NONE
 #define DB_NUM_KEYS                  15000
 #define CPU_FREQ_GHZ                 3.3
 
@@ -28,7 +28,7 @@
 #define LATENCY_DEBUG   1
 
 // Dispatcher do work
-#define DISPATCHER_DO_WORK 1
+#define DISPATCHER_DO_WORK 0
 
 // If 0, runs leveldb. If 1 runs simpleloop
 #define RUN_UBENCH      1  

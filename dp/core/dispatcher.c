@@ -31,6 +31,7 @@
 #include <ix/cfg.h>
 #include <ix/context.h>
 #include <ix/dispatch.h>
+#include <ix/transmit.h>
 
 #include <ix/networker.h>
 #include <net/ip.h>
@@ -175,26 +176,27 @@ static void dispatcher_dl_init(){
 
 static inline void handle_finished(uint8_t i, uint8_t active_req)
 {
-	if (worker_responses[i].responses[active_req].mbuf == NULL)
+	if (worker_responses[i].responses[active_req].req == NULL)
 		log_warn("No mbuf was returned from worker\n");
 
 	context_free(worker_responses[i].responses[active_req].rnbl);
-	mbuf_enqueue(&mqueue, (struct mbuf *)worker_responses[i].responses[active_req].mbuf);
-	worker_responses[i].responses[active_req].flag = PROCESSED;
+        request_enqueue(&frqueue, (struct request *) worker_responses[i].responses[active_req].req);
+        worker_responses[i].responses[active_req].flag = PROCESSED;
 }
 
 static inline void handle_preempted(uint8_t i, uint8_t active_req)
 {
-	void *rnbl, *mbuf;
+	void *rnbl;
+        struct request* req;
 	uint8_t type, category;
 	uint64_t timestamp;
 
 	rnbl = worker_responses[i].responses[active_req].rnbl;
-	mbuf = worker_responses[i].responses[active_req].mbuf;
+	req = worker_responses[i].responses[active_req].req;
 	category = worker_responses[i].responses[active_req].category;
 	type = worker_responses[i].responses[active_req].type;
 	timestamp = worker_responses[i].responses[active_req].timestamp;
-	tskq_enqueue_tail(&tskq, rnbl, mbuf, type, category, timestamp);
+	tskq_enqueue_tail(&tskq, rnbl, req, type, category, timestamp);
 	worker_responses[i].responses[active_req].flag = PROCESSED;
 }
 
@@ -217,17 +219,18 @@ static inline void dispatch_requests(uint64_t cur_time)
 		int idle = get_idle_core();
 		if(idle == -1)
 			return;
-		void *rnbl, *mbuf;
+		void *rnbl;
+                struct request* req;
 		uint8_t type, category;
 		uint64_t timestamp;
 
-		if (tskq_dequeue(&tskq, &rnbl, &mbuf, &type,
+		if (tskq_dequeue(&tskq, &rnbl, &req, &type,
 							&category, &timestamp))
 			return;
 
 		uint8_t active_req = dispatch_states[idle].next_push;
 		dispatcher_requests[idle].requests[active_req].rnbl = rnbl;
-		dispatcher_requests[idle].requests[active_req].mbuf = mbuf;
+		dispatcher_requests[idle].requests[active_req].req = req;
 		dispatcher_requests[idle].requests[active_req].type = type;
 		dispatcher_requests[idle].requests[active_req].category = category;
 		dispatcher_requests[idle].requests[active_req].timestamp = timestamp;
@@ -306,7 +309,7 @@ static inline void handle_networker(uint64_t cur_time)
 	{
 		for (i = 0; i < networker_pointers.cnt; i++)
 		{
-			if(unlikely(networker_pointers.pkts[i] == NULL))
+			if(unlikely(networker_pointers.reqs[i] == NULL))
 			{
 				continue;
 			}
@@ -315,24 +318,116 @@ static inline void handle_networker(uint64_t cur_time)
 			if (unlikely(ret))
 			{
 				log_warn("Cannot allocate context\n");
-				mbuf_enqueue(&mqueue, (struct mbuf *)networker_pointers.pkts[i]);
-				continue;
-			}
-			tskq_enqueue_tail(&tskq, cont,
-							  (void *)networker_pointers.pkts[i],
-							  type, PACKET, cur_time);
-		}
+				request_enqueue(&frqueue, networker_pointers.reqs[i]);
+                                continue;
+                        }
+                        type = networker_pointers.types[i];
+                        tskq_enqueue_tail(&tskq, cont,
+                                          networker_pointers.reqs[i],
+                                          type, PACKET, cur_time);
+                }
 
-		for (i = 0; i < ETH_RX_MAX_BATCH; i++)
-		{
-			struct mbuf *buf = mbuf_dequeue(&mqueue);
-			if (!buf)
-				break;
-			networker_pointers.pkts[i] = buf;
+                for (i = 0; i < ETH_RX_MAX_BATCH; i++) {
+                        struct request * req = request_dequeue(&frqueue);
+                        if (!req)
+                                break;
+                        networker_pointers.reqs[i] = req;
 			networker_pointers.free_cnt++;
 		}
 		networker_pointers.cnt = 0;
 	}
+}
+
+/**
+ * generic_work - generic function acting as placeholder for application-level
+ *                work
+ * @msw: the top 32-bits of the pointer containing the data
+ * @lsw: the bottom 32 bits of the pointer containing the data
+ */
+static void dispatcher_generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
+                         uint32_t lsw_id)
+{
+    asm volatile("sti" ::
+                     :);
+
+    struct ip_tuple *id = (struct ip_tuple *)((uint64_t)msw_id << 32 | lsw_id);
+    void *data = (void *)((uint64_t)msw << 32 | lsw);
+    int ret;
+
+    struct message * req = (struct message *) data;
+
+    // Added for leveldb
+    // leveldb_readoptions_t *readoptions = leveldb_readoptions_create();
+    // leveldb_iterator_t *iter = leveldb_create_iterator(db, readoptions);
+    // for (leveldb_iter_seek_to_first(iter); leveldb_iter_valid(iter); leveldb_iter_next(iter))
+    // {
+    //     char *retr_key;
+    //     size_t klen;
+    //     retr_key = leveldb_iter_key(iter, &klen);
+    //     if (req->runNs > 0)
+    //         break;
+    // }
+    // leveldb_iter_destroy(iter);
+    // leveldb_readoptions_destroy(readoptions);
+
+    uint64_t i = 0;
+    do
+    {
+        asm volatile("nop");
+        i++;
+    } while (i / 0.233 < req->runNs);
+
+         
+    asm volatile ("cli":::);
+
+    struct message resp;
+    resp.genNs = req->genNs;
+    resp.runNs = req->runNs;
+    resp.type = TYPE_RES;
+    resp.req_id = req->req_id;
+
+    struct ip_tuple new_id = {
+        .src_ip = id->dst_ip,
+        .dst_ip = id->src_ip,
+        .src_port = id->dst_port,
+        .dst_port = id->src_port};
+
+    ret = udp_send_one((void *)&resp, sizeof(struct message), &new_id);
+
+    if (ret)
+        log_warn("udp_send failed with error %d\n", ret);
+
+    dispatcher_job_status = COMPLETED;
+    swapcontext_very_fast(dispatcher_cont, &dispatcher_uctx_main);
+}
+
+static inline void dispatcher_parse_packet(struct mbuf *pkt, void **data_ptr,
+                                struct ip_tuple **id_ptr)
+{
+    log_info("dispatcher new packet \n");
+    // Quickly parse packet without doing checks
+    struct eth_hdr *ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
+    struct ip_hdr *iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
+    int hdrlen = iphdr->header_len * sizeof(uint32_t);
+    struct udp_hdr *udphdr = mbuf_nextd_off(iphdr, struct udp_hdr *,
+                                            hdrlen);
+    // Get data and udp header
+    (*data_ptr) = mbuf_nextd(udphdr, void *);
+    uint16_t len = ntoh16(udphdr->len);
+
+    if (unlikely(!mbuf_enough_space(pkt, udphdr, len)))
+    {
+        log_warn("worker: not enough space in mbuf\n");
+        (*data_ptr) = NULL;
+        return;
+    }
+
+    (*id_ptr) = mbuf_mtod(pkt, struct ip_tuple *);
+    (*id_ptr)->src_ip = ntoh32(iphdr->src_addr.addr);
+    (*id_ptr)->dst_ip = ntoh32(iphdr->dst_addr.addr);
+    (*id_ptr)->src_port = ntoh16(udphdr->src_port);
+    (*id_ptr)->dst_port = ntoh16(udphdr->dst_port);
+    pkt->done = (void *)0xDEADBEEF;
 }
 
 static void dispatcher_do_db_generic_work(struct db_req *db_pkg, uint64_t start_time)
@@ -426,13 +521,49 @@ static void dispatcher_do_db_generic_work(struct db_req *db_pkg, uint64_t start_
 }
 
 
+static inline void dispatcher_handle_new_packet(void)
+{
+    int ret;
+    void *data;
+    struct ip_tuple *id;
+    struct mbuf *pkt = (struct mbuf *)dispatcher_job.req;
+    dispatcher_parse_packet(pkt, &data, &id);
+
+    log_info("parse packet");
+
+    if (data)
+    {
+        uint32_t msw = ((uint64_t)data & 0xFFFFFFFF00000000) >> 32;
+        uint32_t lsw = (uint64_t)data & 0x00000000FFFFFFFF;
+        uint32_t msw_id = ((uint64_t)id & 0xFFFFFFFF00000000) >> 32;
+        uint32_t lsw_id = (uint64_t)id & 0x00000000FFFFFFFF;
+
+        dispatcher_cont = (struct mbuf *) dispatcher_job.rnbl;
+        getcontext_fast(dispatcher_cont);
+        set_context_link(dispatcher_cont, &dispatcher_uctx_main);
+        makecontext(dispatcher_cont, (void (*)(void))dispatcher_generic_work, 4, msw, lsw,
+                    msw_id, lsw_id);
+        ret = swapcontext_very_fast(&dispatcher_uctx_main, dispatcher_cont);
+        if (ret)
+        {
+            log_err("Failed to do swap into new context\n");
+            exit(-1);
+        }
+    }
+    else
+    {
+        log_info("OOPS No Data\n");
+        dispatcher_job_status = COMPLETED;
+    }
+}
+
 static inline void dispatcher_handle_fake_new_packet(void)
 {
     int ret;
     struct mbuf *pkt;
     struct db_req *req;
 
-    pkt = (struct mbuf *)dispatcher_job.mbuf;
+    pkt = (struct mbuf *)dispatcher_job.req;
 
     // req = mbuf_mtod(pkt, struct custom_payload *);
     req = mbuf_mtod(pkt, struct db_req *);
@@ -474,10 +605,10 @@ static inline void dispatcher_finish_request(void)
 {
 	dispatcher_job.rnbl = dispatcher_cont;
 	if(dispatcher_job_status == COMPLETED){
-		if (dispatcher_job.mbuf == NULL)
+		if (dispatcher_job.req == NULL)
 			log_warn("No mbuf was returned from worker\n");
 		context_free(dispatcher_job.rnbl);
-		mbuf_enqueue(&mqueue, (struct mbuf *)dispatcher_job.mbuf);
+                request_enqueue(&frqueue, (struct request *) dispatcher_job.req);
 	}
 	else{
 		dispatcher_job.category = CONTEXT;
@@ -487,13 +618,14 @@ static inline void dispatcher_finish_request(void)
 static inline void dispatcher_handle_fake_request(uint64_t cur_time)
 {
 	if(dispatcher_job_status != ONGOING) {
-		void *rnbl, *mbuf;
+		void *rnbl;
+                struct request* req;
 		uint8_t type, category;
 		uint64_t timestamp;
-		if(tskq_dequeue_category(&tskq, &rnbl, &mbuf, &type,&category, &timestamp, PACKET))
+		if(tskq_dequeue_category(&tskq, &rnbl, &req, &type,&category, &timestamp, PACKET))
 			return;
 		dispatcher_job.rnbl = rnbl;
-		dispatcher_job.mbuf = mbuf;
+		dispatcher_job.req = req;
 		dispatcher_job.type = type;
 		dispatcher_job.category = category;
 		dispatcher_job.timestamp = timestamp;
@@ -501,7 +633,7 @@ static inline void dispatcher_handle_fake_request(uint64_t cur_time)
 	}
 
     concord_start_time = rdtsc();
-	concord_preempt_after_cycle = epoch_slack;
+    concord_preempt_after_cycle = epoch_slack;
 
     if (dispatcher_job.category == PACKET)
     {
@@ -513,6 +645,38 @@ static inline void dispatcher_handle_fake_request(uint64_t cur_time)
     }
 	fake_eth_process_send();
 	dispatcher_finish_request();
+}
+
+static inline void dispatcher_handle_request(void)
+{
+
+   if(dispatcher_job_status != ONGOING) {
+      void *rnbl;
+      struct request* req;
+      uint8_t type, category;
+      uint64_t timestamp;
+      if(tskq_dequeue_category(&tskq, &rnbl, &req, &type,&category, &timestamp, PACKET))
+           return;
+      dispatcher_job.rnbl = rnbl;
+      dispatcher_job.req = req;
+      dispatcher_job.type = type;
+      dispatcher_job.category = category;
+      dispatcher_job.timestamp = timestamp;
+      dispatcher_job_status = ONGOING;
+   }
+
+    concord_start_time = rdtsc();
+    concord_preempt_after_cycle = epoch_slack;
+
+    if (dispatcher_job.category == PACKET)
+    {
+        dispatcher_handle_new_packet();
+    }
+    else
+    {
+        dispatcher_handle_context();
+    }
+
 }
 
 void dispatcher_do_work(uint64_t cur_time){

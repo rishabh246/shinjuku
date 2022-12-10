@@ -180,49 +180,24 @@ extern int dune_register_intr_handler(int vector, dune_intr_cb cb);
 
 pid_t worker_tid;
 
-struct response
-{
-    uint64_t runNs;
-    uint64_t genNs;
-};
-
-struct request
-{
-    uint64_t runNs;
-    uint64_t genNs;
-};
-
-/**
- * myresponse_init - allocates global response datastore
- */
-int myresponse_init(void)
-{
-    return mempool_create_datastore(&response_datastore, 128000,
-                                    sizeof(struct myresponse), 1,
-                                    MEMPOOL_DEFAULT_CHUNKSIZE,
-                                    "response");
-}
-
 /**
  * response_init - allocates global response datastore
  */
 int response_init(void)
 {
-    return myresponse_init();
-    // return mempool_create_datastore(&response_datastore, 128000,
-    //                                 sizeof(struct response), 1,
-    //                                 MEMPOOL_DEFAULT_CHUNKSIZE,
-    //                                 "response");
+        return mempool_create_datastore(&response_datastore, 128000,
+                                        sizeof(struct message), 1,
+                                        MEMPOOL_DEFAULT_CHUNKSIZE,
+                                        "response");
 }
-
 /**
  * response_init_cpu - allocates per cpu response mempools
  */
 int response_init_cpu(void)
 {
-    struct mempool *m = &percpu_get(response_pool);
-    return mempool_create(m, &response_datastore, MEMPOOL_SANITY_PERCPU,
-                          percpu_get(cpu_id));
+        struct mempool *m = &percpu_get(response_pool);
+        return mempool_create(m, &response_datastore, MEMPOOL_SANITY_PERCPU,
+                              percpu_get(cpu_id));
 }
 
 static void test_handler(struct dune_tf *tf)
@@ -273,7 +248,7 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     void *data = (void *)((uint64_t)msw << 32 | lsw);
     int ret;
 
-    struct request *req = (struct request *)data;
+    struct message * req = (struct message *) data;
 
     // Added for leveldb
     // leveldb_readoptions_t *readoptions = leveldb_readoptions_create();
@@ -289,36 +264,29 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     // leveldb_iter_destroy(iter);
     // leveldb_readoptions_destroy(readoptions);
 
-    // uint64_t i = 0;
-    // do
-    // {
-    //     asm volatile("nop");
-    //     i++;
-    // } while (i / 0.233 < req->runNs);
-
-    asm volatile("cli" ::
-                     :);
-
-    struct response *resp = mempool_alloc(&percpu_get(response_pool));
-    if (!resp)
+    uint64_t i = 0;
+    do
     {
-        log_warn("Cannot allocate response buffer\n");
-        finished = true;
-        swapcontext_very_fast(cont, &uctx_main);
-    }
+        asm volatile("nop");
+        i++;
+    } while (i / 0.233 < req->runNs);
 
-    resp->genNs = req->genNs;
-    resp->runNs = req->runNs;
+         
+    asm volatile ("cli":::);
+
+    struct message resp;
+    resp.genNs = req->genNs;
+    resp.runNs = req->runNs;
+    resp.type = TYPE_RES;
+    resp.req_id = req->req_id;
+
     struct ip_tuple new_id = {
         .src_ip = id->dst_ip,
         .dst_ip = id->src_ip,
         .src_port = id->dst_port,
         .dst_port = id->src_port};
 
-    ret = udp_send((void *)resp, sizeof(struct response), &new_id,
-                   (uint64_t)resp);
-    // ret = udp_send_one((void *)resp, sizeof(struct response), &new_id,
-    //             (uint64_t) resp);
+    ret = udp_send_one((void *)&resp, sizeof(struct message), &new_id);
 
     if (ret)
         log_warn("udp_send failed with error %d\n", ret);
@@ -330,7 +298,6 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
 static inline void parse_packet(struct mbuf *pkt, void **data_ptr,
                                 struct ip_tuple **id_ptr)
 {
-    log_info("new packet \n");
     // Quickly parse packet without doing checks
     struct eth_hdr *ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
     struct ip_hdr *iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
@@ -376,11 +343,8 @@ static inline void handle_new_packet(void)
     int ret;
     void *data;
     struct ip_tuple *id;
-    struct mbuf *pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
+    struct mbuf *pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].req->mbufs[0];
     parse_packet(pkt, &data, &id);
-
-    log_info("parse packet");
-
     if (data)
     {
         uint32_t msw = ((uint64_t)data & 0xFFFFFFFF00000000) >> 32;
@@ -531,7 +495,7 @@ static inline void handle_fake_new_packet(void)
     // struct custom_payload *req;
     struct db_req *req;
 
-    pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
+    pkt = (struct mbuf *)dispatcher_requests[cpu_nr_].requests[active_req].req;
 
     // req = mbuf_mtod(pkt, struct custom_payload *);
     req = mbuf_mtod(pkt, struct db_req *);
@@ -621,7 +585,7 @@ static inline void finish_request(void)
 {
     worker_responses[cpu_nr_].responses[active_req].timestamp = dispatcher_requests[cpu_nr_].requests[active_req].timestamp;
     worker_responses[cpu_nr_].responses[active_req].type = dispatcher_requests[cpu_nr_].requests[active_req].type;
-    worker_responses[cpu_nr_].responses[active_req].mbuf = dispatcher_requests[cpu_nr_].requests[active_req].mbuf;
+    worker_responses[cpu_nr_].responses[active_req].req = dispatcher_requests[cpu_nr_].requests[active_req].req;
     worker_responses[cpu_nr_].responses[active_req].rnbl = cont;
     worker_responses[cpu_nr_].responses[active_req].category = CONTEXT;
     if (finished)
