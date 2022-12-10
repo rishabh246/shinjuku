@@ -29,6 +29,11 @@
 #include <ix/mempool.h>
 #include <ix/ethqueue.h>
 
+#include <net/ip.h>
+#include <net/arp.h>
+#include <net/udp.h>
+#include <net/ethernet.h>
+
 #define MAX_WORKERS   18
 
 #define WAITING     0x00
@@ -43,18 +48,61 @@
 #define PACKET      0x01
 #define CONTEXT     0x02
 
+#define TYPE_REQ 1
+#define TYPE_RES 0
+
 #define MAX_UINT64  0xFFFFFFFFFFFFFFFF
+
+extern int req_offset;
 
 struct mempool_datastore task_datastore;
 struct mempool task_mempool __attribute((aligned(64)));
-struct mempool_datastore mcell_datastore;
-struct mempool mcell_mempool __attribute((aligned(64)));
+struct mempool_datastore fini_request_cell_datastore;
+struct mempool fini_request_cell_mempool __attribute((aligned(64)));
+struct mempool_datastore request_datastore;
+struct mempool request_mempool __attribute((aligned(64)));
+struct mempool_datastore rq_datastore;
+struct mempool rq_mempool __attribute((aligned(64)));
+
+struct message {
+        uint16_t type;
+        uint16_t seq_num;
+	uint32_t queue_length[3];
+        uint16_t client_id;
+        uint32_t req_id;
+        uint32_t pkts_length;
+        uint64_t runNs;
+        uint64_t genNs;
+} __attribute__((__packed__));
+
+struct request
+{
+	uint32_t pkts_length;
+	uint16_t type;
+	void * mbufs[8];
+} __attribute__((packed, aligned(64)));
+
+struct request_cell
+{
+	uint8_t pkts_remaining;
+	uint16_t client_id;
+	uint32_t req_id;
+	struct request * req;
+	struct request_cell * next;
+	struct request_cell * prev;
+} __attribute__((packed, aligned(64)));
+
+struct request_queue {
+        struct request_cell * head;
+};
+
+struct request_queue rqueue;
 
 struct worker_response
 {
         uint64_t flag;
         void * rnbl;
-        void * mbuf;
+        struct request * req;
         uint64_t timestamp;
         uint8_t type;
         uint8_t category;
@@ -65,7 +113,7 @@ struct dispatcher_request
 {
         uint64_t flag;
         void * rnbl;
-        void * mbuf;
+        struct request * req;
         uint8_t type;
         uint8_t category;
         uint64_t timestamp;
@@ -77,50 +125,50 @@ struct networker_pointers_t
         uint8_t cnt;
         uint8_t free_cnt;
         uint8_t types[ETH_RX_MAX_BATCH];
-        struct mbuf * pkts[ETH_RX_MAX_BATCH];
+        struct request* reqs[ETH_RX_MAX_BATCH];
         char make_it_64_bytes[64 - ETH_RX_MAX_BATCH*9 - 2];
 } __attribute__((packed, aligned(64)));
 
-struct mbuf_cell {
-        struct mbuf * buffer;
-        struct mbuf_cell * next;
+struct fini_request_cell {
+        struct request * req;
+        struct fini_request_cell * next;
 };
 
-struct mbuf_queue {
-        struct mbuf_cell * head;
+struct fini_request_queue {
+        struct fini_request_cell * head;
 };
 
-struct mbuf_queue mqueue;
+struct fini_request_queue frqueue;
 
-static inline struct mbuf * mbuf_dequeue(struct mbuf_queue * mq)
+static inline struct request * request_dequeue(struct fini_request_queue * frq)
 {
-        struct mbuf_cell * tmp;
-        struct mbuf * buf;
+        struct fini_request_cell * tmp;
+        struct request * req;
 
-        if (!mq->head)
+        if (!frq->head)
                 return NULL;
 
-        buf = mq->head->buffer;
-        tmp = mq->head;
-        mempool_free(&mcell_mempool, tmp);
-        mq->head = mq->head->next;
+        req = frq->head->req;
+        tmp = frq->head;
+        mempool_free(&fini_request_cell_mempool, tmp);
+        frq->head = frq->head->next;
 
-        return buf;
+        return req;
 }
 
-static inline void mbuf_enqueue(struct mbuf_queue * mq, struct mbuf * buf)
+static inline void request_enqueue(struct fini_request_queue * frq, struct request * req)
 {
-        if (unlikely(!buf))
+        if (unlikely(!req))
                 return;
-        struct mbuf_cell * mcell = mempool_alloc(&mcell_mempool);
-        mcell->buffer = buf;
-        mcell->next = mq->head;
-        mq->head = mcell;
+        struct fini_request_cell * frcell = mempool_alloc(&fini_request_cell_mempool);
+        frcell->req = req;
+        frcell->next = frq->head;
+        frq->head = frcell;
 }
 
 struct task {
         void * runnable;
-        void * mbuf;
+        void * req;
         uint8_t type;
         uint8_t category;
         uint64_t timestamp;
@@ -136,12 +184,12 @@ struct task_queue
 struct task_queue tskq[CFG_MAX_PORTS];
 
 static inline void tskq_enqueue_head(struct task_queue * tq, void * rnbl,
-                                     void * mbuf, uint8_t type,
+                                     struct request* req, uint8_t type,
                                      uint8_t category, uint64_t timestamp)
 {
         struct task * tsk = mempool_alloc(&task_mempool);
         tsk->runnable = rnbl;
-        tsk->mbuf = mbuf;
+        tsk->req = req;
         tsk->type = type;
         tsk->category = category;
         tsk->timestamp = timestamp;
@@ -157,14 +205,14 @@ static inline void tskq_enqueue_head(struct task_queue * tq, void * rnbl,
 }
 
 static inline void tskq_enqueue_tail(struct task_queue * tq, void * rnbl,
-                                     void * mbuf, uint8_t type,
+                                     struct request* req, uint8_t type,
                                      uint8_t category, uint64_t timestamp)
 {
         struct task * tsk = mempool_alloc(&task_mempool);
         if (!tsk)
                 return;
         tsk->runnable = rnbl;
-        tsk->mbuf = mbuf;
+        tsk->req = req;
         tsk->type = type;
         tsk->category = category;
         tsk->timestamp = timestamp;
@@ -180,13 +228,13 @@ static inline void tskq_enqueue_tail(struct task_queue * tq, void * rnbl,
 }
 
 static inline int tskq_dequeue(struct task_queue * tq, void ** rnbl_ptr,
-                                void ** mbuf, uint8_t *type, uint8_t *category,
+                                struct request** req, uint8_t *type, uint8_t *category,
                                 uint64_t *timestamp)
 {
         if (tq->head == NULL)
             return -1;
         (*rnbl_ptr) = tq->head->runnable;
-        (*mbuf) = tq->head->mbuf;
+        (*req) = tq->head->req;
         (*type) = tq->head->type;
         (*category) = tq->head->category;
         (*timestamp) = tq->head->timestamp;
@@ -207,12 +255,12 @@ static inline uint64_t get_queue_timestamp(struct task_queue * tq, uint64_t * ti
 }
 
 static inline int naive_tskq_dequeue(struct task_queue * tq, void ** rnbl_ptr,
-                                     void ** mbuf, uint8_t *type,
+                                     struct request** req, uint8_t *type,
                                      uint8_t *category, uint64_t *timestamp)
 {
         int i;
         for (i = 0; i < CFG.num_ports; i++) {
-                if(tskq_dequeue(&tq[i], rnbl_ptr, mbuf, type, category,
+                if(tskq_dequeue(&tq[i], rnbl_ptr, req, type, category,
                                 timestamp) == 0)
                         return 0;
         }
@@ -220,7 +268,7 @@ static inline int naive_tskq_dequeue(struct task_queue * tq, void ** rnbl_ptr,
 }
 
 static inline int smart_tskq_dequeue(struct task_queue * tq, void ** rnbl_ptr,
-                                     void ** mbuf, uint8_t *type,
+                                     struct request** req, uint8_t *type,
                                      uint8_t *category, uint64_t *timestamp,
                                      uint64_t cur_time)
 {
@@ -243,10 +291,97 @@ static inline int smart_tskq_dequeue(struct task_queue * tq, void ** rnbl_ptr,
         }
 
         if (index != -1) {
-                return tskq_dequeue(&tq[index], rnbl_ptr, mbuf, type, category,
+                return tskq_dequeue(&tq[index], rnbl_ptr, req, type, category,
                                     timestamp);
         }
         return -1;
+}
+
+
+static inline struct request * rq_update(struct request_queue * rq, struct mbuf * pkt)
+{
+	// Quickly parse packet without doing checks
+        struct eth_hdr * ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
+        struct ip_hdr *  iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
+        int hdrlen = iphdr->header_len * sizeof(uint32_t);
+	struct udp_hdr * udphdr = mbuf_nextd_off(iphdr, struct udp_hdr *,
+                                                 hdrlen);
+	// Get data and udp header
+	void * data = mbuf_nextd(udphdr, void *);
+	struct message * msg = (struct message *) data;
+
+	uint16_t type = msg->type - req_offset;
+        log_debug("RQ received packet type %d\n", type);
+        uint16_t seq_num = msg->seq_num;
+        uint16_t client_id = msg->client_id;
+        uint32_t req_id = msg->req_id;
+        uint32_t pkts_length = msg->pkts_length / sizeof(struct message);
+	if (pkts_length == 1) {
+		struct request * req = mempool_alloc(&request_mempool);
+        if (unlikely(!req)) {
+            mbuf_free(pkt);
+            return NULL;
+        }
+		req->type = type;
+		req->pkts_length = 1;
+		req->mbufs[0] = pkt;
+		return req;
+	}
+
+        if (!rq->head) {
+                struct request_cell * rc = mempool_alloc(&rq_mempool);
+                rc->pkts_remaining = pkts_length - 1;
+                rc->client_id = client_id;
+                rc->req_id = req_id;
+                rc->req = mempool_alloc(&request_mempool);
+                rc->req->mbufs[seq_num] = pkt;
+                rc->req->pkts_length = pkts_length;
+                rc->req->type = type;
+                rc->next = NULL;
+                rc->prev = NULL;
+                rq->head = rc;
+                return NULL;
+        }
+	struct request_cell * cur = rq->head;
+        while (cur != NULL) {
+                if (cur->client_id == client_id && cur->req_id == req_id) {
+                        cur->req->mbufs[seq_num] = pkt;
+                        cur->pkts_remaining--;
+			if (cur->pkts_remaining == 0) {
+				struct request * req = cur->req;
+				if (cur->prev == NULL) {
+					rq->head = cur->next;
+					if (rq->head != NULL)
+						rq->head->prev = NULL;
+				} else {
+					cur->prev->next = cur->next;
+					if (cur->next != NULL)
+						cur->next->prev = cur->prev;
+				}
+				mempool_free(&rq_mempool, cur);
+				return req;
+			}
+			return NULL;
+		}
+		cur = cur->next;
+        }
+
+        if (cur == NULL) {
+                struct request_cell * rc = mempool_alloc(&rq_mempool);
+                rc->pkts_remaining = pkts_length - 1;
+                rc->client_id = client_id;
+                rc->req_id = req_id;
+                rc->req = mempool_alloc(&request_mempool);
+                rc->req->mbufs[seq_num] = pkt;
+                rc->req->pkts_length = pkts_length;
+                rc->req->type = type;
+                rc->next = rq->head;
+		rc->next->prev = rc;
+		rc->prev = NULL;
+                rq->head = rc;
+                return NULL;
+        }
+        return NULL;
 }
 
 uint64_t timestamps[MAX_WORKERS];

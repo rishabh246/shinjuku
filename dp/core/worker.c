@@ -181,41 +181,24 @@ void fake_eth_process_send(void);
 
 pid_t worker_tid;
 
-struct response
-{
-    uint64_t runNs;
-    uint64_t genNs;
-};
-
-struct request
-{
-    uint64_t runNs;
-    uint64_t genNs;
-};
-
 /**
  * response_init - allocates global response datastore
  */
 int response_init(void)
 {
-    return mempool_create_datastore(&response_datastore, 128000,
-                                    sizeof(struct myresponse), 1,
-                                    MEMPOOL_DEFAULT_CHUNKSIZE,
-                                    "response");
-    // return mempool_create_datastore(&response_datastore, 128000,
-    //                                 sizeof(struct response), 1,
-    //                                 MEMPOOL_DEFAULT_CHUNKSIZE,
-    //                                 "response");
+        return mempool_create_datastore(&response_datastore, 128000,
+                                        sizeof(struct message), 1,
+                                        MEMPOOL_DEFAULT_CHUNKSIZE,
+                                        "response");
 }
-
 /**
  * response_init_cpu - allocates per cpu response mempools
  */
 int response_init_cpu(void)
 {
-    struct mempool *m = &percpu_get(response_pool);
-    return mempool_create(m, &response_datastore, MEMPOOL_SANITY_PERCPU,
-                          percpu_get(cpu_id));
+        struct mempool *m = &percpu_get(response_pool);
+        return mempool_create(m, &response_datastore, MEMPOOL_SANITY_PERCPU,
+                              percpu_get(cpu_id));
 }
 
 static void test_handler(struct dune_tf *tf)
@@ -245,7 +228,7 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     void * data = (void *)((uint64_t) msw << 32 | lsw);
     int ret;
 
-    struct request * req = (struct request *) data;
+    struct message * req = (struct message *) data;
 
     uint64_t i = 0;
     do {
@@ -254,15 +237,12 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     } while ( i / 0.233 < req->runNs);
 
     asm volatile ("cli":::);
-    struct response * resp = mempool_alloc(&percpu_get(response_pool));
-    if (!resp) {
-            log_warn("Cannot allocate response buffer\n");
-            finished = true;
-            swapcontext_very_fast(cont, &uctx_main);
-    }
+    struct message resp;
+    resp.genNs = req->genNs;
+    resp.runNs = req->runNs;
+    resp.type = TYPE_RES;
+    resp.req_id = req->req_id;
 
-    resp->genNs = req->genNs;
-    resp->runNs = req->runNs;
     struct ip_tuple new_id = {
             .src_ip = id->dst_ip,
             .dst_ip = id->src_ip,
@@ -270,8 +250,7 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
             .dst_port = id->src_port
     };
 
-    ret = udp_send((void *)resp, sizeof(struct response), &new_id,
-                    (uint64_t) resp);
+    ret = udp_send_one((void *)&resp, sizeof(struct message), &new_id);
     if (ret)
             log_warn("udp_send failed with error %d\n", ret);
 
@@ -282,7 +261,6 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
 static inline void parse_packet(struct mbuf *pkt, void **data_ptr,
                                 struct ip_tuple **id_ptr)
 {
-    log_info("new packet \n");
     // Quickly parse packet without doing checks
     struct eth_hdr * ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
     struct ip_hdr *  iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
@@ -321,10 +299,8 @@ static inline void handle_new_packet(void)
     int ret;
     void *data;
     struct ip_tuple *id;
-    struct mbuf * pkt = (struct mbuf *) dispatcher_requests[cpu_nr_].mbuf;
+    struct mbuf * pkt = (struct mbuf *) dispatcher_requests[cpu_nr_].req->mbufs[0];
     parse_packet(pkt, &data, &id);
-
-    log_info("parse packet");
 
     if (data)
     {
@@ -474,7 +450,7 @@ static inline void handle_fake_new_packet(void)
     int ret;
     struct db_req *req;
 
-    struct mbuf * pkt = (struct mbuf *) dispatcher_requests[cpu_nr_].mbuf;
+    struct mbuf * pkt = (struct mbuf *) dispatcher_requests[cpu_nr_].req;
 
     req = mbuf_mtod(pkt, struct db_req *);
 
@@ -562,8 +538,8 @@ static inline void finish_request(void)
                         dispatcher_requests[cpu_nr_].timestamp;
         worker_responses[cpu_nr_].type = \
                         dispatcher_requests[cpu_nr_].type;
-        worker_responses[cpu_nr_].mbuf = \
-                        dispatcher_requests[cpu_nr_].mbuf;
+        worker_responses[cpu_nr_].req = \
+                        dispatcher_requests[cpu_nr_].req;
         worker_responses[cpu_nr_].rnbl = cont;
         worker_responses[cpu_nr_].category = CONTEXT;
         if (finished) {
