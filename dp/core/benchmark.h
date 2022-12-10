@@ -11,7 +11,7 @@
 
 #define BENCHMARK_STOP_AT_PACKET     1000000000000
 #define BENCHMARK_DURATION_US        1000000 * 10 
-#define SCHEDULE_METHOD              METHOD_NONE
+#define SCHEDULE_METHOD              METHOD_CONCORD
 #define DB_NUM_KEYS                  15000
 #define CPU_FREQ_GHZ                 3.3
 
