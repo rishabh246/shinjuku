@@ -212,7 +212,7 @@ static void test_handler(struct dune_tf *tf)
 
     swapcontext_fast_to_control(cont, &uctx_main);
 }
-
+__thread uint64_t short_ctr =0, long_ctr = 0;
 /**
  * generic_work - generic function acting as placeholder for application-level
  *                work
@@ -230,11 +230,18 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
 
     struct message * req = (struct message *) data;
 
-    uint64_t i = 0;
-    do {
-            asm volatile ("nop");
-            i++;
-    } while ( i / 0.233 < req->runNs);
+    // uint64_t i = 0;
+    // do {
+    //         asm volatile ("nop");
+    //         i++;
+    // } while ( i / 0.233 < req->runNs);
+
+    if(req->runNs == 1000){
+        simpleloop(BENCHMARK_SMALL_PKT_SPIN);
+    }
+    else{
+        simpleloop(BENCHMARK_LARGE_PKT_SPIN);
+    }
 
     asm volatile ("cli":::);
     struct message resp;
@@ -253,7 +260,6 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     ret = udp_send_one((void *)&resp, sizeof(struct message), &new_id);
     if (ret)
             log_warn("udp_send failed with error %d\n", ret);
-
     finished = true;
     swapcontext_very_fast(cont, &uctx_main);
 }

@@ -13,7 +13,7 @@
 #define BENCHMARK_DURATION_US        1000000 * 10 
 #define SCHEDULE_METHOD              METHOD_PI
 #define DB_NUM_KEYS                  15000
-#define CPU_FREQ_GHZ                 3.3
+#define CPU_FREQ_GHZ                 2.5
 
 // Set to -1 to run in infinite loop
 #define BENCHMARK_CREATE_NO_PACKET   -1
@@ -30,17 +30,17 @@
 
 #if RUN_UBENCH == 1
     // Different workload mixes 
-    #define BENCHMARK_TYPE    0 
+    #define BENCHMARK_TYPE    1 
     #if BENCHMARK_TYPE == 0                      // 100% 100us.
-    #define BENCHMARK_SMALL_PKT_SPIN   31   
+    #define BENCHMARK_SMALL_PKT_SPIN   62   
     #define BENCHMARK_SMALL_PKT_NS     1000
-    #define BENCHMARK_LARGE_PKT_SPIN   3300  
+    #define BENCHMARK_LARGE_PKT_SPIN   6200  
     #define BENCHMARK_LARGE_PKT_NS     100000
     #define MU                         0.01
     #elif  BENCHMARK_TYPE == 1                  // 50% 1us, 50% 100us
-    #define BENCHMARK_SMALL_PKT_SPIN   31   
+    #define BENCHMARK_SMALL_PKT_SPIN   62   
     #define BENCHMARK_SMALL_PKT_NS     1000
-    #define BENCHMARK_LARGE_PKT_SPIN   3300  
+    #define BENCHMARK_LARGE_PKT_SPIN   6400  
     #define BENCHMARK_LARGE_PKT_NS     100000
     #define MU                         0.0198                
     #elif  BENCHMARK_TYPE == 2                  // 99.5% 0.5us, 0.5% 500us

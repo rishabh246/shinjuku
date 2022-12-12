@@ -181,7 +181,7 @@ struct task_queue
         struct task * tail;
 };
         
-struct task_queue tskq[CFG_MAX_PORTS];
+struct task_queue tskq;
 
 static inline void tskq_enqueue_head(struct task_queue * tq, void * rnbl,
                                      struct request* req, uint8_t type,

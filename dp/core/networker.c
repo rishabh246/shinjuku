@@ -89,7 +89,7 @@ void do_networking(void)
 			struct request * req = rq_update(&rqueue, recv_mbufs[i]);
 			if (req) {
 				networker_pointers.reqs[j] = req;
-				networker_pointers.types[j] = (uint8_t) req->type;
+				networker_pointers.types[j] = 0;
 				j++;
 			}
         }

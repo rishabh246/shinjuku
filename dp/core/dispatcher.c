@@ -57,7 +57,7 @@ extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 extern void yield_handler(void);
 
 #define PREEMPT_VECTOR 0xf2
-#define PREEMPTION_DELAY 5000
+#define PREEMPTION_DELAY 2000
 
 static void timestamp_init(int num_workers)
 {
@@ -95,7 +95,7 @@ static inline void handle_preempted(int i)
         category = worker_responses[i].category;
         type = worker_responses[i].type;
         timestamp = worker_responses[i].timestamp;
-        tskq_enqueue_tail(&tskq[type], rnbl, req, type, category, timestamp);
+        tskq_enqueue_tail(&tskq, rnbl, req, type, category, timestamp);
         preempt_check[i] = false;
         worker_responses[i].flag = PROCESSED;
 }
@@ -107,8 +107,8 @@ static inline void dispatch_request(int i, uint64_t cur_time)
         uint8_t type, category;
         uint64_t timestamp;
 
-        if(smart_tskq_dequeue(tskq, &rnbl, &req, &type,
-                              &category, &timestamp, cur_time))
+        if(tskq_dequeue(&tskq, &rnbl, &req, &type,
+                              &category, &timestamp))
                 return;
         worker_responses[i].flag = RUNNING;
         dispatcher_requests[i].rnbl = rnbl;
@@ -165,7 +165,7 @@ static inline void handle_networker(uint64_t cur_time)
 			ret = context_alloc(&cont);
 			if (unlikely(ret))
 			{
-				// log_warn("Cannot allocate context\n");
+				log_warn("Cannot allocate context\n");
                                 request_enqueue(&frqueue, networker_pointers.reqs[i]);
                                 continue;
 			}
