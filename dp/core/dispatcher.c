@@ -63,7 +63,7 @@ uint64_t dispatched_pkts = 0;
 extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 
 #define PREEMPT_VECTOR 0xf2
-#define PREEMPTION_DELAY 2000
+#define PREEMPTION_DELAY 5000
 
 uint16_t num_workers = 0;
 volatile int * cpu_preempt_points [MAX_WORKERS] = {NULL};
