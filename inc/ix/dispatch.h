@@ -457,3 +457,5 @@ volatile struct networker_pointers_t networker_pointers;
 volatile struct jbsq_worker_response worker_responses[MAX_WORKERS];
 volatile struct jbsq_dispatcher_request dispatcher_requests[MAX_WORKERS];
 struct worker_state dispatch_states[MAX_WORKERS];
+uint8_t idle_list[MAX_WORKERS];
+uint8_t idle_list_head;

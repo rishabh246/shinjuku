@@ -129,7 +129,9 @@ static void dispatch_states_init()
 		dispatch_states[i].next_push = 0;
 		dispatch_states[i].next_pop = 0;
 		dispatch_states[i].occupancy = 0;
+        idle_list[i] = i;
 	}
+    idle_list_head = 0;
 }
 
 static void requests_init() {
@@ -200,34 +202,36 @@ static inline void handle_preempted(uint8_t i, uint8_t active_req)
 	worker_responses[i].responses[active_req].flag = PROCESSED;
 }
 
-static inline int get_idle_core(){
-	uint8_t min_occupancy = JBSQ_LEN;
-	int idle = -1;
-	for (int i = 0; i < num_workers; i++){
-		if(!dispatch_states[i].occupancy)
-			return i;
-		else if (dispatch_states[i].occupancy < min_occupancy){
-			min_occupancy = dispatch_states[i].occupancy;
-			idle = i;
-		}
-	}
-	return idle;
-}
 static inline void dispatch_requests(uint64_t cur_time)
 {
 	while(1){
-		int idle = get_idle_core();
-		if(idle == -1)
-			return;
-		void *rnbl;
-                struct request* req;
-		uint8_t type, category;
-		uint64_t timestamp;
+        void *rnbl;
+        struct request* req;
+        uint8_t type, category;
+        uint64_t timestamp;
 
-		if (tskq_dequeue(&tskq, &rnbl, &req, &type,
-							&category, &timestamp))
-			return;
+        int idle;
 
+		if(likely(idle_list_head < num_workers-1)){
+            idle = idle_list[idle_list_head];
+            idle_list_head++;
+            if (tskq_dequeue(&tskq, &rnbl, &req, &type,
+                                &category, &timestamp)){
+                idle_list_head--;
+                return;
+            }
+        }
+        else{
+            for (idle = 0; idle < num_workers; idle++){
+                if(dispatch_states[idle].occupancy == 1)
+                   break;
+            }
+            if(idle == num_workers)
+                return;
+            if (tskq_dequeue(&tskq, &rnbl, &req, &type,
+                                &category, &timestamp))
+                return;
+        }
 		uint8_t active_req = dispatch_states[idle].next_push;
 		dispatcher_requests[idle].requests[active_req].rnbl = rnbl;
 		dispatcher_requests[idle].requests[active_req].req = req;
@@ -288,13 +292,21 @@ static inline void handle_worker(uint8_t i, uint64_t cur_time)
 		{
 			handle_finished(i, dispatch_states[i].next_pop);
 			jbsq_get_next(&(dispatch_states[i].next_pop));
-			dispatch_states[i].occupancy--;
+            dispatch_states[i].occupancy--;
+            if(dispatch_states[i].occupancy == 0){
+                idle_list_head--;
+                idle_list[idle_list_head] = i;
+            }
 		}
 		else if (worker_responses[i].responses[dispatch_states[i].next_pop].flag == PREEMPTED)
 		{
 			handle_preempted(i, dispatch_states[i].next_pop);
 			jbsq_get_next(&(dispatch_states[i].next_pop));
 			dispatch_states[i].occupancy--;
+            if(dispatch_states[i].occupancy == 0){
+                idle_list_head--;
+                idle_list[idle_list_head] = i;
+            }
 		}
 	} 
 }
