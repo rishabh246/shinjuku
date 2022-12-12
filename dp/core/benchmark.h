@@ -30,7 +30,7 @@
 
 #if RUN_UBENCH == 1
     // Different workload mixes 
-    #define BENCHMARK_TYPE    1 
+    #define BENCHMARK_TYPE    2 
     #if BENCHMARK_TYPE == 0                      // 100% 100us.
     #define BENCHMARK_SMALL_PKT_SPIN   62   
     #define BENCHMARK_SMALL_PKT_NS     1000
@@ -44,9 +44,9 @@
     #define BENCHMARK_LARGE_PKT_NS     100000
     #define MU                         0.0198                
     #elif  BENCHMARK_TYPE == 2                  // 99.5% 0.5us, 0.5% 500us
-    #define BENCHMARK_SMALL_PKT_SPIN   14 
+    #define BENCHMARK_SMALL_PKT_SPIN   27 
     #define BENCHMARK_SMALL_PKT_NS     500
-    #define BENCHMARK_LARGE_PKT_SPIN   16000 
+    #define BENCHMARK_LARGE_PKT_SPIN   32000 
     #define BENCHMARK_LARGE_PKT_NS     500000
     #define MU                         0.333611
     #elif  (BENCHMARK_TYPE == 3) || (BENCHMARK_TYPE == 4)    // Fixed 1us or exp 1us
