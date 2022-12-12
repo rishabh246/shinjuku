@@ -28,14 +28,14 @@
 #define LATENCY_DEBUG   1
 
 // Dispatcher do work
-#define DISPATCHER_DO_WORK 1
+#define DISPATCHER_DO_WORK 0
 
 // If 0, runs leveldb. If 1 runs simpleloop
 #define RUN_UBENCH      1  
 
 #if RUN_UBENCH == 1
     // Different workload mixes 
-    #define BENCHMARK_TYPE    1 
+    #define BENCHMARK_TYPE    2 
     #if BENCHMARK_TYPE == 0                      // 100% 100us.
     #define BENCHMARK_SMALL_PKT_SPIN   62   
     #define BENCHMARK_SMALL_PKT_NS     1000
@@ -51,7 +51,7 @@
     #elif  BENCHMARK_TYPE == 2                  // 99.5% 0.5us, 0.5% 500us
     #define BENCHMARK_SMALL_PKT_SPIN   27 
     #define BENCHMARK_SMALL_PKT_NS     500
-    #define BENCHMARK_LARGE_PKT_SPIN   30000 
+    #define BENCHMARK_LARGE_PKT_SPIN   32000 
     #define BENCHMARK_LARGE_PKT_NS     500000
     #define MU                         0.333611
     #elif  (BENCHMARK_TYPE == 3) || (BENCHMARK_TYPE == 4)    // Fixed 1us or exp 1us

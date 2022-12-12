@@ -271,7 +271,7 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     //     i++;
     // } while (i / 0.233 < req->runNs);
 
-    if(req->runNs == 1000){
+    if(req->runNs == 500){
         simpleloop(BENCHMARK_SMALL_PKT_SPIN);
     }
     else{
