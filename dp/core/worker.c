@@ -264,14 +264,15 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     // leveldb_iter_destroy(iter);
     // leveldb_readoptions_destroy(readoptions);
 
-    uint64_t i = 0;
-    do
-    {
-        asm volatile("nop");
-        i++;
-    } while (i / 0.233 < req->runNs);
+    // uint64_t i = 0;
+    // do
+    // {
+    //     asm volatile("nop");
+    //     i++;
+    // } while (i / 0.233 < req->runNs);
 
-         
+    simpleloop(31);
+
     asm volatile ("cli":::);
 
     struct message resp;
@@ -310,7 +311,7 @@ static inline void parse_packet(struct mbuf *pkt, void **data_ptr,
 
     if (unlikely(!mbuf_enough_space(pkt, udphdr, len)))
     {
-        log_warn("worker: not enough space in mbuf\n");
+        // log_warn("worker: not enough space in mbuf\n");
         (*data_ptr) = NULL;
         return;
     }
@@ -366,7 +367,7 @@ static inline void handle_new_packet(void)
     }
     else
     {
-        log_info("OOPS No Data\n");
+        log_debug("OOPS No Data\n");
         finished = true;
     }
 }
@@ -502,7 +503,7 @@ static inline void handle_fake_new_packet(void)
 
     if (req == NULL)
     {
-        log_info("OOPS No Data\n");
+        log_debug("OOPS No Data\n");
         finished = true;
         return;
     }

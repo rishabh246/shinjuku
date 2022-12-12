@@ -63,7 +63,7 @@ uint64_t dispatched_pkts = 0;
 extern void dune_apic_send_posted_ipi(uint8_t vector, uint32_t dest_core);
 
 #define PREEMPT_VECTOR 0xf2
-#define PREEMPTION_DELAY 5000
+#define PREEMPTION_DELAY 2000
 
 uint16_t num_workers = 0;
 volatile int * cpu_preempt_points [MAX_WORKERS] = {NULL};
@@ -394,8 +394,8 @@ static void dispatcher_generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
 
     ret = udp_send_one((void *)&resp, sizeof(struct message), &new_id);
 
-    if (ret)
-        log_warn("udp_send failed with error %d\n", ret);
+//     if (ret)
+//         log_warn("udp_send failed with error %d\n", ret);
 
     dispatcher_job_status = COMPLETED;
     swapcontext_very_fast(dispatcher_cont, &dispatcher_uctx_main);
@@ -404,7 +404,6 @@ static void dispatcher_generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
 static inline void dispatcher_parse_packet(struct mbuf *pkt, void **data_ptr,
                                 struct ip_tuple **id_ptr)
 {
-    log_info("dispatcher new packet \n");
     // Quickly parse packet without doing checks
     struct eth_hdr *ethhdr = mbuf_mtod(pkt, struct eth_hdr *);
     struct ip_hdr *iphdr = mbuf_nextd(ethhdr, struct ip_hdr *);
@@ -417,7 +416,7 @@ static inline void dispatcher_parse_packet(struct mbuf *pkt, void **data_ptr,
 
     if (unlikely(!mbuf_enough_space(pkt, udphdr, len)))
     {
-        log_warn("worker: not enough space in mbuf\n");
+        // log_warn("worker: not enough space in mbuf\n");
         (*data_ptr) = NULL;
         return;
     }
@@ -529,8 +528,6 @@ static inline void dispatcher_handle_new_packet(void)
     struct mbuf *pkt = (struct mbuf *)dispatcher_job.req;
     dispatcher_parse_packet(pkt, &data, &id);
 
-    log_info("parse packet");
-
     if (data)
     {
         uint32_t msw = ((uint64_t)data & 0xFFFFFFFF00000000) >> 32;
@@ -552,7 +549,7 @@ static inline void dispatcher_handle_new_packet(void)
     }
     else
     {
-        log_info("OOPS No Data\n");
+        log_debug("OOPS No Data\n");
         dispatcher_job_status = COMPLETED;
     }
 }
@@ -570,7 +567,7 @@ static inline void dispatcher_handle_fake_new_packet(void)
 
     if (req == NULL)
     {
-        log_info("OOPS No Data\n");
+        log_debug("OOPS No Data\n");
         dispatcher_job_status = COMPLETED;
         return;
     }

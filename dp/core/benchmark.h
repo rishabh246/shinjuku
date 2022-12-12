@@ -28,7 +28,7 @@
 #define LATENCY_DEBUG   1
 
 // Dispatcher do work
-#define DISPATCHER_DO_WORK 0
+#define DISPATCHER_DO_WORK 1
 
 // If 0, runs leveldb. If 1 runs simpleloop
 #define RUN_UBENCH      1  
