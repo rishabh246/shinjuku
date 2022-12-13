@@ -236,11 +236,19 @@ static void generic_work(uint32_t msw, uint32_t lsw, uint32_t msw_id,
     //         i++;
     // } while ( i / 0.233 < req->runNs);
 
-    if(req->runNs == 500){
-        simpleloop(BENCHMARK_SMALL_PKT_SPIN);
+    if(req->runNs == 1300){
+        char test_key[KEYSIZE];
+        sprintf(test_key,"keyz%zu",rand() % DB_NUM_KEYS);
+        int read_len = VALSIZE;
+        char* err;
+        cncrd_leveldb_get(db,roptions,test_key,KEYSIZE,&read_len, &err);   
+            if (err != NULL)
+            {
+                fprintf(stderr, "get fail. %s\n", test_key);
+            }
     }
     else{
-        simpleloop(BENCHMARK_LARGE_PKT_SPIN);
+        cncrd_leveldb_scan(db,roptions, 'musa');
     }
 
     asm volatile ("cli":::);
